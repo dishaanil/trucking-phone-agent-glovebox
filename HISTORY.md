@@ -8,9 +8,10 @@ Project memory for Glovebox across build sessions. Rules for maintaining this fi
 
 *Overwritten each session.*
 
-- **Phase:** design locked, build not started.
-- **Done:** CLAUDE.md, docs/SPEC.md, HISTORY.md, Claude Code settings, git hooks.
-- **Next:** Day 1 of the build plan (SPEC section 15): repo scaffold, migrations, both seed templates, sandbox create/reset, caller resolve.
+- **Phase:** Day 1 built and committed on `feat/day1-scaffold` (not pushed, not merged).
+- **Done:** repo scaffold, `db/migrations/001_init.sql`, both seed templates as Postgres functions, `db/migrate.sh`, `/api` (Fastify + zod) with `POST /sandboxes`, `/sandboxes/:id/phones`, `/sandboxes/:id/role`, `/sandboxes/:id/reset`, `/callers/resolve`. 38 vitest tests pass against local Postgres; lint and typecheck clean.
+- **Next:** Day 2 (SPEC section 15): expenses and scale tickets, validation, readbacks, role checks, idempotency.
+- **Not done yet:** `/api/src/integrations` interfaces (moved to Day 3 with the mocks); `/agent`, `/web`, `/evals` skeletons (built on their own days).
 - **Blockers:** none.
 
 ---
@@ -97,6 +98,29 @@ Project memory for Glovebox across build sessions. Rules for maintaining this fi
 - **Choice:** Maintain this file across sessions with current state, append-only decisions, learnings, open threads and a session log.
 - **Why:** Preserve reasoning across build sessions and make decisions easy to defend in interviews.
 
+### 2026-10-27: Seed phone numbers use NXX-555-0100 to 0199
+- **Choice:** Seed phones are like (270) 555-0101, stored as E.164 (`+12705550101`). Mike 0101, Ray 0111, Tommy 0112, Luis 0113.
+- **Why:** The reserved fictional range is the 555-01xx line block inside an area code. SPEC's original `(555) 010-0101` used area code 555, which is not that range.
+
+### 2026-10-27: Stable `people.seed_key`
+- **Choice:** `people.seed_key` (`mike`, `ray`, `tommy`, `luis`), unique per sandbox. Reset saves phone registrations by seed_key and re-attaches them to the re-seeded people.
+- **Why:** Reset re-creates people with new UUIDs, and `sandbox_phones` cascades from `people`, so phone registrations would vanish on reset.
+- **Alternatives:** Keep person UUIDs fixed across resets (would need deterministic UUIDs in seeds; more fragile).
+
+### 2026-10-27: `sandboxes.active_person_seed_key` stores the visitor's role
+- **Choice:** New column, set by `POST /sandboxes/:id/role`. Defaults to `mike` for owner-operator, null for small fleet. Code-mode calls resolve to this person; if null, resolve returns `choose_person` and the agent asks.
+- **Why:** CLAUDE.md says the role lives on the sandbox, but the schema had no column for it. Stored by seed_key so it survives reset.
+
+### 2026-10-27: Seed templates are Postgres functions
+- **Choice:** `seed_owner_operator(uuid)` and `seed_small_fleet(uuid)`, defined with `create or replace` in `/db/seeds/*.sql` and re-applied on every `db/migrate.sh` run. The API calls `select seed_small_fleet($1)`.
+- **Why:** A normal parameterized call that is easy to test and needs no hidden session state, unlike `set_config`, which silently breaks if it runs outside the seeding transaction. Keeping them in `/db/seeds/` (not numbered migrations) means changing seed data doesn't need a new migration each time.
+- **Alternatives:** `set_config('glovebox.sandbox_id', ...)` plus `current_setting` in plain SQL seeds; functions created in numbered migrations (every seed tweak would be a new migration).
+
+### 2026-10-27: Day 1 sandbox and caller rules
+- **Choice:** Registering a phone already used in another sandbox moves it to the new one (newest wins). Every sandbox gets a demo code regardless of access mode, so switching modes just works. Expired visitor sandboxes are deleted when a new one is created. `/callers/resolve` requires a service token (`Authorization: Bearer`); sandbox endpoints are public for the web. Resolve returns a `status` union (`resolved`, `choose_person`, `not_found`) instead of 404s. Active loads are the caller's own booked, in-transit, or delivered per-ton loads still missing a confirmed scale ticket.
+- **Why:** Proposed as Day 1 assumptions and approved. A visitor who starts over shouldn't get stuck.
+- **Deferred:** Rate limiting on public sandbox endpoints (Day 7, deploy).
+
 ---
 
 ## Learnings and gotchas
@@ -107,6 +131,11 @@ Project memory for Glovebox across build sessions. Rules for maintaining this fi
 - **2026-10-27:** Free tiers: LiveKit Build plan includes agent minutes and one free US phone number; Deepgram gives one-time signup credit; Gemini free tier has low requests-per-minute without billing enabled; Cartesia free tier is small (roughly half an hour of speech) and non-commercial. Verify current limits before relying on them.
 - **2026-10-27:** Ambrook's stack (from job postings): Next.js and React in TypeScript, Expo and React Native, Firestore, PostgreSQL and Cloud Storage, GCP, BigQuery and Hex.
 
+- **2026-10-27:** Corepack bundled with Node 24.5 can't run pnpm 12.x (it looks for `bin/pnpm.cjs`; pnpm 12 ships `pnpm.mjs`). `api/package.json` pins `"packageManager": "pnpm@11.15.0"`. Updating corepack (`npm i -g corepack@latest`) should allow pnpm 12. Assumption, not tested.
+- **2026-10-27:** TypeScript 7 is out, but typescript-eslint 8.72 supports only `<6.1`. Pinned `typescript ~6.0.3`.
+- **2026-10-27:** pnpm 11 blocks dependency build scripts by default; `api/pnpm-workspace.yaml` sets `allowBuilds: { esbuild: true }` (needed by tsx and vitest).
+- **2026-10-27:** The local Postgres server's session timezone is not UTC (+11). The API pool sets `timezone=UTC` on every connection. Seeds compute local times explicitly in America/Chicago.
+
 ---
 
 ## Open threads
@@ -116,7 +145,10 @@ Project memory for Glovebox across build sessions. Rules for maintaining this fi
 - How common is detention billing on grain hauls to elevators? Ask Ambrook. Until then, detention stays out of Story B.
 - Are per-ton rates the usual pay model for small grain haulers, or mixed with flat rates?
 - Should owners review and approve driver-logged expenses? Not in the demo.
-- Run the FMCSA SAFER and web name check on all seed business and facility names before publishing.
+- Run the FMCSA SAFER and web name check on all seed business and facility names before publishing. New Day 1 names to include: Corliss Packaging, Tamsin Foods Warehouse, Orrin Valley Foods, Lakemont Grocery DC, Sutter Ridge Farm, Dellacourt Farm, Ostrander Fertilizer Depot, Halvern Farm Co-op, Benton Truck and Trailer Repair.
+- Define "this week" for summaries (Day 3): calendar week from Monday, or the last 7 days? Seed loads are dated 1 to 3 days ago, so on a Monday a calendar week would leave them out.
+- Phone "newest wins" means registering one of the recording phones in a visitor demo removes it from the recording sandbox. Fine for now; revisit before recording day.
+- CLAUDE.md "Conventions > SQL" still says seeds are "written against a `:sandbox_id` parameter". Update to describe seed functions?
 
 ---
 
@@ -128,3 +160,9 @@ Project memory for Glovebox across build sessions. Rules for maintaining this fi
 - Chose the trucking agent, positioning, stack, scenarios, demo stories and data model.
 - Created CLAUDE.md, docs/SPEC.md, HISTORY.md, `.claude/settings.json`, `.githooks/commit-msg`, `.githooks/pre-commit`.
 - No code yet. No commits yet.
+
+### 2026-10-27: Day 1 build
+- Fixed three schema gaps (phone range, `people.seed_key`, `sandboxes.active_person_seed_key`); updated SPEC sections 5 and 12. Chose seed functions over `set_config`.
+- Added `.gitignore`, `db/` (migration, seeds, `migrate.sh`), `api/` (config, db, schemas, sandbox and caller services and routes, service-token auth, tests).
+- Commits: `00a90cb` on `main` (original docs, settings, hooks, .gitignore); Day 1 work as one commit on `feat/day1-scaffold`. Not pushed.
+- Hooks: `core.hooksPath` is not set yet (the setup command was blocked for Claude); both hooks were run by hand before each commit.
