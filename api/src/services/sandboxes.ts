@@ -177,13 +177,15 @@ async function findPersonId(db: Queryable, sandboxId: string, seedKey: string): 
 
 /**
  * Map a visitor's phone to a seeded person. A phone is active in only one sandbox at a time:
- * registering it here removes it from any other sandbox, so the newest demo wins.
+ * registering it here removes it from any other sandbox, so the newest demo wins. The exception
+ * is a phone pinned to a recording sandbox, which is refused. The response never says whether
+ * the number was registered elsewhere.
  */
 export async function registerPhone(
   pool: Pool,
   sandboxId: string,
   input: { phone: string; seed_key: string },
-): Promise<{ seed_key: string; phone_last4: string; moved_from_other_sandbox: boolean }> {
+): Promise<{ seed_key: string; phone_last4: string }> {
   const phone = toE164(input.phone);
   if (!phone) throw new ApiError(400, 'invalid_phone', "That doesn't look like a valid phone number.");
 
@@ -193,10 +195,16 @@ export async function registerPhone(
 
     // Serialize registrations of the same number across sandboxes.
     await client.query('select pg_advisory_xact_lock(hashtext($1))', [phone]);
-    const moved = await client.query(
-      'delete from sandbox_phones where phone_e164 = $1 and sandbox_id <> $2',
+    const pinned = await client.query(
+      `select 1 from sandbox_phones sp
+         join sandboxes s on s.id = sp.sandbox_id
+        where sp.phone_e164 = $1 and sp.sandbox_id <> $2 and s.is_recording`,
       [phone, sandboxId],
     );
+    if ((pinned.rowCount ?? 0) > 0) {
+      throw new ApiError(409, 'phone_unavailable', "That number can't be used for this demo. Try a demo code instead.");
+    }
+    await client.query('delete from sandbox_phones where phone_e164 = $1 and sandbox_id <> $2', [phone, sandboxId]);
     await client.query(
       `insert into sandbox_phones (sandbox_id, phone_e164, person_id) values ($1, $2, $3)
        on conflict (sandbox_id, phone_e164) do update set person_id = excluded.person_id`,
@@ -208,11 +216,7 @@ export async function registerPhone(
       actorPersonId: personId,
       payload: { seed_key: input.seed_key, phone_last4: last4(phone) },
     });
-    return {
-      seed_key: input.seed_key,
-      phone_last4: last4(phone),
-      moved_from_other_sandbox: (moved.rowCount ?? 0) > 0,
-    };
+    return { seed_key: input.seed_key, phone_last4: last4(phone) };
   });
 }
 

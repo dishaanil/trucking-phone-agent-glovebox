@@ -151,7 +151,7 @@ All commits, pushes and pull requests must be authored as me. Never as Claude.
 
 ### SQL (/db)
 - Numbered migrations (`001_init.sql`, `002_...`); never edit an applied migration
-- Seed templates in `/db/seeds/owner_operator.sql` and `/db/seeds/small_fleet.sql`, written against a `:sandbox_id` parameter so they can be copied into any sandbox
+- Seed templates are Postgres functions, `seed_owner_operator(sandbox_id uuid)` and `seed_small_fleet(sandbox_id uuid)`, in `/db/seeds/owner_operator.sql` and `/db/seeds/small_fleet.sql`. They use `create or replace`, are re-applied by `db/migrate.sh`, and are called with a parameterized `select seed_small_fleet($1)` so they can be copied into any sandbox
 
 ## Voice behavior rules (agent prompt must follow)
 

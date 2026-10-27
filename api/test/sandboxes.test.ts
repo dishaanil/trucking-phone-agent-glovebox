@@ -7,8 +7,18 @@ beforeAll(() => {
   ctx = makeContext();
 });
 afterAll(async () => {
+  // Recording sandboxes never expire; remove them so their pinned phones can't affect later runs.
+  await ctx.pool.query('delete from sandboxes where id = any($1::uuid[])', [recordingIds]);
   await closeContext(ctx);
 });
+
+const recordingIds: string[] = [];
+async function newRecordingSandbox(): Promise<SandboxView> {
+  const sb = await newSandbox(ctx, 'small_fleet', 'phone');
+  await ctx.pool.query('update sandboxes set is_recording = true where id = $1', [sb.id]);
+  recordingIds.push(sb.id);
+  return sb;
+}
 
 async function count(table: string, sandboxId: string): Promise<number> {
   const sql: Record<string, string> = {
@@ -104,23 +114,74 @@ describe('POST /sandboxes/:id/phones', () => {
       payload: { phone, seed_key: 'tommy' },
     });
     expect(res.statusCode).toBe(200);
-    expect(res.json()).toEqual({ seed_key: 'tommy', phone_last4: phone.slice(-4), moved_from_other_sandbox: false });
+    expect(res.json()).toEqual({ seed_key: 'tommy', phone_last4: phone.slice(-4) });
     expect(res.body).not.toContain(phone);
   });
 
-  it('moves a phone out of an older sandbox instead of refusing', async () => {
+  it('moves a phone out of an older sandbox without saying so', async () => {
     const phone = fakePhone();
-    const first = await newSandbox(ctx, 'small_fleet', 'phone');
-    const second = await newSandbox(ctx, 'owner_operator', 'phone');
-    await ctx.app.inject({ method: 'POST', url: `/sandboxes/${first.id}/phones`, payload: { phone, seed_key: 'ray' } });
+    const older = await newSandbox(ctx, 'small_fleet', 'phone');
+    const newer = await newSandbox(ctx, 'owner_operator', 'phone');
+    await ctx.app.inject({ method: 'POST', url: `/sandboxes/${older.id}/phones`, payload: { phone, seed_key: 'ray' } });
     const res = await ctx.app.inject({
       method: 'POST',
-      url: `/sandboxes/${second.id}/phones`,
+      url: `/sandboxes/${newer.id}/phones`,
       payload: { phone, seed_key: 'mike' },
     });
-    expect(res.json().moved_from_other_sandbox).toBe(true);
+    expect(res.json()).toEqual({ seed_key: 'mike', phone_last4: phone.slice(-4) });
     const { rows } = await ctx.pool.query('select sandbox_id from sandbox_phones where phone_e164 = $1', [phone]);
-    expect(rows).toEqual([{ sandbox_id: second.id }]);
+    expect(rows).toEqual([{ sandbox_id: newer.id }]);
+  });
+
+  it('refuses a phone pinned to a recording sandbox, with a generic message', async () => {
+    const phone = fakePhone();
+    const recording = await newRecordingSandbox();
+    await ctx.app.inject({
+      method: 'POST',
+      url: `/sandboxes/${recording.id}/phones`,
+      payload: { phone, seed_key: 'ray' },
+    });
+
+    const visitor = await newSandbox(ctx, 'small_fleet', 'phone');
+    const res = await ctx.app.inject({
+      method: 'POST',
+      url: `/sandboxes/${visitor.id}/phones`,
+      payload: { phone, seed_key: 'tommy' },
+    });
+    expect(res.statusCode).toBe(409);
+    expect(res.json()).toEqual({
+      error: 'phone_unavailable',
+      message: "That number can't be used for this demo. Try a demo code instead.",
+    });
+    expect(res.body).not.toMatch(/record|registered|another|elsewhere/i);
+
+    // The recording sandbox keeps the phone, and the visitor sandbox gets nothing.
+    const { rows } = await ctx.pool.query('select sandbox_id from sandbox_phones where phone_e164 = $1', [phone]);
+    expect(rows).toEqual([{ sandbox_id: recording.id }]);
+  });
+
+  it('lets a recording sandbox re-map its own pinned phone', async () => {
+    const phone = fakePhone();
+    const recording = await newRecordingSandbox();
+    const url = `/sandboxes/${recording.id}/phones`;
+    await ctx.app.inject({ method: 'POST', url, payload: { phone, seed_key: 'ray' } });
+    const res = await ctx.app.inject({ method: 'POST', url, payload: { phone, seed_key: 'tommy' } });
+    expect(res.statusCode).toBe(200);
+  });
+
+  it('moves a phone from a visitor sandbox into a recording sandbox', async () => {
+    const phone = fakePhone();
+    const visitor = await newSandbox(ctx, 'small_fleet', 'phone');
+    await ctx.app.inject({ method: 'POST', url: `/sandboxes/${visitor.id}/phones`, payload: { phone, seed_key: 'ray' } });
+    const recording = await newRecordingSandbox();
+    const res = await ctx.app.inject({
+      method: 'POST',
+      url: `/sandboxes/${recording.id}/phones`,
+      payload: { phone, seed_key: 'ray' },
+    });
+    expect(res.statusCode).toBe(200);
+    const { rows } = await ctx.pool.query('select sandbox_id from sandbox_phones where phone_e164 = $1', [phone]);
+    expect(rows).toEqual([{ sandbox_id: recording.id }]);
   });
 
   it('rejects an invalid phone, an unknown person, and an expired sandbox', async () => {
