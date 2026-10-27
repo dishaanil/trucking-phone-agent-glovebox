@@ -52,7 +52,6 @@ export type SandboxView = z.infer<typeof SandboxView>;
 export const RegisterPhoneResponse = z.object({
   seed_key: z.string(),
   phone_last4: z.string(),
-  moved_from_other_sandbox: z.boolean(),
 });
 
 const StopView = z.object({

@@ -143,7 +143,8 @@ create table sandbox_phones (
   person_id uuid not null references people(id) on delete cascade,
   primary key (sandbox_id, phone_e164)
 );
--- A phone number may be active in only one unexpired sandbox at a time (enforced in API)
+-- A phone number may be active in only one unexpired sandbox at a time (enforced in API).
+-- Registering it moves it to the newest sandbox, except phones in a recording sandbox, which are pinned.
 
 create table trucks (
   id uuid primary key default gen_random_uuid(),
@@ -394,6 +395,8 @@ load:
 truck (range):    sum over loads on the truck in range + truck overhead expenses in range
 business (range): sum over trucks + business overhead
 ```
+**Ranges:** "this week" is the calendar week from Monday 00:00 to now, in the business's timezone. "Last 7 days" is supported when the caller says it.
+
 Each response includes a one-sentence `summary` for the agent to speak, e.g. "Truck 2 grossed 1,850 this week, spent 640, so it netted 1,210."
 
 ## 9. Detention
@@ -503,7 +506,7 @@ The agent resolves load numbers, truck numbers and stop names to IDs using the c
 Updates arrive via SSE. No polling.
 
 ### Recording mode
-A recording sandbox is a normal sandbox with `is_recording = true` (never expires) and your two real phones registered: one to the owner, one to a hired driver. Created by a script, not through the public UI.
+A recording sandbox is a normal sandbox with `is_recording = true` (never expires) and your two real phones registered: one to the owner, one to a hired driver. Created by a script, not through the public UI. Its phones are pinned: public registration of a pinned number is refused with a generic message that doesn't reveal it's registered elsewhere.
 
 ## 12. Seed scenarios
 
@@ -536,7 +539,7 @@ All names, numbers and amounts below are fictional. Before publishing, run the n
   - 7710, Truck 3 (Luis): corn, per ton, delivered, paid
 - **Existing confirmed expenses:** a few fuel purchases across Kentucky, Tennessee, Illinois and Indiana (for the fuel by state stretch), one repair on Truck 3
 
-Seed templates are deterministic and use relative dates ("today", "this week") computed at copy time, so the demo always looks current.
+Seed templates are deterministic and use relative dates ("today", "this week") computed at copy time, so the demo always looks current. Seed activity for this week falls between Monday 00:00 (business timezone) and now, so weekly summaries are never empty, even early on a Monday. Load 4390 falls in the previous week.
 
 Seed phone numbers use the reserved fictional range NXX-555-0100 to 0199 (for example (270) 555-0101), never area code 555.
 

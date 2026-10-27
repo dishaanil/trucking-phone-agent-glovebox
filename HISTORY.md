@@ -8,10 +8,10 @@ Project memory for Glovebox across build sessions. Rules for maintaining this fi
 
 *Overwritten each session.*
 
-- **Phase:** Day 1 built and committed on `feat/day1-scaffold` (not pushed, not merged).
-- **Done:** repo scaffold, `db/migrations/001_init.sql`, both seed templates as Postgres functions, `db/migrate.sh`, `/api` (Fastify + zod) with `POST /sandboxes`, `/sandboxes/:id/phones`, `/sandboxes/:id/role`, `/sandboxes/:id/reset`, `/callers/resolve`. 38 vitest tests pass against local Postgres; lint and typecheck clean.
-- **Next:** Day 2 (SPEC section 15): expenses and scale tickets, validation, readbacks, role checks, idempotency.
-- **Not done yet:** `/api/src/integrations` interfaces (moved to Day 3 with the mocks); `/agent`, `/web`, `/evals` skeletons (built on their own days).
+- **Phase:** Day 1 merged to `main` (PR #1). Day 1 follow-ups on `fix/day1-followups`.
+- **Done:** Day 1 scaffold, plus: recording-sandbox phones are pinned; seed timestamps stay inside the current week; CLAUDE.md seeds wording updated. 57 vitest tests pass; lint and typecheck clean.
+- **Next:** Day 2 (SPEC section 15): expenses and scale tickets. Plan drafted; the seven assumptions are waiting on Disha.
+- **Not done yet:** `/api/src/integrations` interfaces (Day 3); `/agent`, `/web`, `/evals` skeletons (their own days).
 - **Blockers:** none.
 
 ---
@@ -121,6 +121,25 @@ Project memory for Glovebox across build sessions. Rules for maintaining this fi
 - **Why:** Proposed as Day 1 assumptions and approved. A visitor who starts over shouldn't get stuck.
 - **Deferred:** Rate limiting on public sandbox endpoints (Day 7, deploy).
 
+### 2026-10-27: "This week" is the calendar week from Monday
+- **Choice:** "This week" means Monday 00:00 to now, in the business's timezone. "Last 7 days" is supported when the caller says it. Seed timestamps for this week must fall between the start of the current week and now, so summaries are never empty.
+- **Why:** Matches how owners talk about a week. Resolves the open thread about Monday seed data falling into last week.
+- **Alternatives:** Rolling 7 days as the default (rejected; supported only when asked).
+- **Implementation:** `seed_this_week()` in `db/seeds/00_helpers.sql` uses a realistic offset ("60 minutes ago") but never earlier than Monday 00:00; early in the week it falls back to a proportional position between Monday and now, keeping events in order. Seed functions take an optional `p_now` so tests can simulate any time (`api/test/seeds.test.ts`). Applying "this week" in summaries is Day 3.
+
+### 2026-10-27: Phones in a recording sandbox are pinned
+- **Choice:** A phone registered in a recording sandbox (`is_recording = true`) can't be moved by public registration. The request is refused with a generic message that doesn't reveal the number is registered elsewhere. Supersedes "newest wins" (Day 1 sandbox and caller rules) for recording phones only; visitor phones still move to the newest sandbox.
+- **Why:** A visitor demo must not be able to break the recorded video setup, or learn which numbers are in use.
+- **Implementation:** `registerPhone` returns 409 `phone_unavailable` ("That number can't be used for this demo. Try a demo code instead.") when the number is in another sandbox that is recording. A recording sandbox can still re-map its own phones and take phones from visitor sandboxes. Also removed `moved_from_other_sandbox` from the response, since it revealed whether a number was in use in another visitor's demo.
+
+### 2026-10-27: CLAUDE.md describes seed functions
+- **Choice:** Updated "Conventions > SQL" to say seed templates are Postgres functions called with a parameterized select, replacing the `:sandbox_id` parameter wording.
+- **Why:** Matches the seed functions decision. Resolves the open thread.
+
+### 2026-10-27: Push over SSH
+- **Choice:** `origin` is `git@github.com:dishaanil/trucking-phone-agent-glovebox.git`.
+- **Why:** The HTTPS credential in the macOS keychain belongs to a different GitHub account and got a 403. The SSH key authenticates as dishaanil, matching `gh`.
+
 ---
 
 ## Learnings and gotchas
@@ -136,6 +155,11 @@ Project memory for Glovebox across build sessions. Rules for maintaining this fi
 - **2026-10-27:** pnpm 11 blocks dependency build scripts by default; `api/pnpm-workspace.yaml` sets `allowBuilds: { esbuild: true }` (needed by tsx and vitest).
 - **2026-10-27:** The local Postgres server's session timezone is not UTC (+11). The API pool sets `timezone=UTC` on every connection. Seeds compute local times explicitly in America/Chicago.
 
+- **2026-10-27:** HTTPS pushes on this machine use a keychain credential for a different GitHub account (403). Use the SSH remote.
+
+- **2026-10-27:** Changing a Postgres function's argument list with `create or replace` adds an overload instead of replacing it, which makes calls with the old arguments ambiguous. Seed files `drop function if exists` the old signature first.
+- **2026-10-27:** `db/migrate.sh` runs seed files in name order, so shared helpers live in `00_helpers.sql` (digits sort before letters in every locale; `_` does not).
+
 ---
 
 ## Open threads
@@ -146,9 +170,6 @@ Project memory for Glovebox across build sessions. Rules for maintaining this fi
 - Are per-ton rates the usual pay model for small grain haulers, or mixed with flat rates?
 - Should owners review and approve driver-logged expenses? Not in the demo.
 - Run the FMCSA SAFER and web name check on all seed business and facility names before publishing. New Day 1 names to include: Corliss Packaging, Tamsin Foods Warehouse, Orrin Valley Foods, Lakemont Grocery DC, Sutter Ridge Farm, Dellacourt Farm, Ostrander Fertilizer Depot, Halvern Farm Co-op, Benton Truck and Trailer Repair.
-- Define "this week" for summaries (Day 3): calendar week from Monday, or the last 7 days? Seed loads are dated 1 to 3 days ago, so on a Monday a calendar week would leave them out.
-- Phone "newest wins" means registering one of the recording phones in a visitor demo removes it from the recording sandbox. Fine for now; revisit before recording day.
-- CLAUDE.md "Conventions > SQL" still says seeds are "written against a `:sandbox_id` parameter". Update to describe seed functions?
 
 ---
 
@@ -165,4 +186,10 @@ Project memory for Glovebox across build sessions. Rules for maintaining this fi
 - Fixed three schema gaps (phone range, `people.seed_key`, `sandboxes.active_person_seed_key`); updated SPEC sections 5 and 12. Chose seed functions over `set_config`.
 - Added `.gitignore`, `db/` (migration, seeds, `migrate.sh`), `api/` (config, db, schemas, sandbox and caller services and routes, service-token auth, tests).
 - Commits: `00a90cb` on `main` (original docs, settings, hooks, .gitignore); Day 1 work as one commit on `feat/day1-scaffold`. Not pushed.
-- Hooks: `core.hooksPath` is not set yet (the setup command was blocked for Claude); both hooks were run by hand before each commit.
+- Hooks: `core.hooksPath` was not set during the Day 1 commits (the setup command was blocked for Claude), so both hooks were run by hand. Disha set it afterwards.
+- Pushed `main` and `feat/day1-scaffold` with approval. Logged decisions on "this week", pinned recording phones, and the CLAUDE.md seeds wording.
+
+### 2026-10-27: Day 1 follow-ups
+- After PR #1 was merged: pinned recording-sandbox phones, kept seed timestamps inside the current week, and updated CLAUDE.md (seeds wording), SPEC sections 5, 8, 11 and 12, and HISTORY.md.
+- Files: `db/seeds/00_helpers.sql` (new), `db/seeds/owner_operator.sql`, `db/seeds/small_fleet.sql`, `api/src/services/sandboxes.ts`, `api/src/schemas.ts`, `api/test/sandboxes.test.ts`, `api/test/seeds.test.ts` (new).
+- Branch `fix/day1-followups`, one commit.
