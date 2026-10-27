@@ -110,6 +110,7 @@ create table sandboxes (
   scenario scenario not null,
   access_mode access_mode not null,
   demo_code char(4) unique,                    -- for code mode
+  active_person_seed_key text,                 -- who the visitor plays; survives reset
   is_recording boolean not null default false, -- recording sandboxes don't expire
   created_at timestamptz not null default now(),
   expires_at timestamptz not null default now() + interval '24 hours'
@@ -126,11 +127,13 @@ create table people (
   id uuid primary key default gen_random_uuid(),
   sandbox_id uuid not null references sandboxes(id) on delete cascade,
   business_id uuid not null references businesses(id) on delete cascade,
+  seed_key text not null,                      -- stable across resets: 'mike', 'ray', 'tommy', 'luis'
   full_name text not null,
   is_owner boolean not null default false,
   is_driver boolean not null default false,
-  seed_phone text,                             -- fictional 555-01xx number
-  timezone text not null default 'America/Chicago'
+  seed_phone text,                             -- fictional NXX-555-01xx number, E.164
+  timezone text not null default 'America/Chicago',
+  unique (sandbox_id, seed_key)
 );
 
 -- Which real phone maps to which seeded person, per sandbox (phone mode)
@@ -277,6 +280,8 @@ create table events (                          -- audit log + dashboard feed
 - `scale_tickets` is separate from expenses because it changes revenue, not cost.
 - `payers` covers brokers and direct customers; detention terms are nullable because not every payer pays detention.
 - `load_id` on expenses is nullable so overhead (a truck wash between loads) can still be captured, attributed to a truck.
+- `people.seed_key` is stable across resets. Reset re-seeds people with new UUIDs, so registered phones and the active role are stored by `seed_key` and re-attached after reset.
+- `sandboxes.active_person_seed_key` is the visitor's current role (`POST /sandboxes/:id/role`). Code-mode calls resolve to this person; when it is unset in the small fleet, the agent asks who is calling.
 
 ## 6. Mocked integrations
 
@@ -506,7 +511,7 @@ All names, numbers and amounts below are fictional. Before publishing, run the n
 
 ### Scenario A: owner-operator
 - **Business:** Kestrel Line Freight LLC, DOT `DEMO-0001`
-- **Person:** Mike Delgren, owner + driver, (555) 010-0101 (seed only), America/Chicago
+- **Person:** Mike Delgren (`mike`), owner + driver, (270) 555-0101 (seed only), America/Chicago
 - **Truck 1:** dry van
 - **Payer:** Bluegate Freight Partners (broker), pays detention: 120 free minutes, $50/hr, 15-minute increments, on time required, 15-minute grace
 - **Load 4471:** Chicago, IL to Atlanta, GA, flat rate $2,400, 715 loaded miles, in transit
@@ -519,9 +524,9 @@ All names, numbers and amounts below are fictional. Before publishing, run the n
 ### Scenario B: small fleet (grain hauling)
 - **Business:** Cedar Fork Hauling LLC, western Kentucky, DOT `DEMO-0002`
 - **People:**
-  - Ray Whitlock, owner + driver, Truck 1, (555) 010-0111
-  - Tommy Reece, driver, Truck 2, (555) 010-0112
-  - Luis Ortega, driver, Truck 3, (555) 010-0113
+  - Ray Whitlock (`ray`), owner + driver, Truck 1, (270) 555-0111
+  - Tommy Reece (`tommy`), driver, Truck 2, (270) 555-0112
+  - Luis Ortega (`luis`), driver, Truck 3, (270) 555-0113
 - **Trucks 1 to 3:** hopper bottom
 - **Payers:** Millbrook Grain Co. (receiver, pays per ton, no detention); Prairie Run Brokerage (broker, flat rate, pays detention)
 - **Loads this week:**
@@ -532,6 +537,10 @@ All names, numbers and amounts below are fictional. Before publishing, run the n
 - **Existing confirmed expenses:** a few fuel purchases across Kentucky, Tennessee, Illinois and Indiana (for the fuel by state stretch), one repair on Truck 3
 
 Seed templates are deterministic and use relative dates ("today", "this week") computed at copy time, so the demo always looks current.
+
+Seed phone numbers use the reserved fictional range NXX-555-0100 to 0199 (for example (270) 555-0101), never area code 555.
+
+Each seed template is a Postgres function, `seed_owner_operator(sandbox_id uuid)` and `seed_small_fleet(sandbox_id uuid)`, defined with `create or replace` in `/db/seeds/` and re-applied by `db/migrate.sh`. The API calls it with a parameterized `select seed_small_fleet($1)`.
 
 ## 13. Demo stories
 
