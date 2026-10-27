@@ -1,0 +1,14 @@
+#!/bin/sh
+# Strip AI attribution trailers from commit messages.
+# Installed via: git config core.hooksPath .githooks
+
+msg_file="$1"
+tmp_file="$(mktemp)"
+
+grep -viE '^(co-authored-by:.*(claude|anthropic)|claude-session:|.*generated with \[?claude code)' "$msg_file" > "$tmp_file"
+
+# Remove trailing blank lines left behind
+sed -e :a -e '/^\n*$/{$d;N;ba' -e '}' "$tmp_file" > "$msg_file"
+rm -f "$tmp_file"
+
+exit 0

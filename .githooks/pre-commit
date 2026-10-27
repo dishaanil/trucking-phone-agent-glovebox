@@ -1,0 +1,21 @@
+#!/bin/sh
+# Block commits whose author or committer identity looks like Claude or Anthropic.
+# Installed via: git config core.hooksPath .githooks
+
+author="$(git var GIT_AUTHOR_IDENT 2>/dev/null)"
+committer="$(git var GIT_COMMITTER_IDENT 2>/dev/null)"
+
+if [ -z "$author" ] || [ -z "$committer" ]; then
+  echo "pre-commit: git identity is not configured. Set user.name and user.email first." >&2
+  exit 1
+fi
+
+if printf '%s\n%s\n' "$author" "$committer" | grep -qiE 'claude|anthropic'; then
+  echo "pre-commit: commit identity looks like Claude or Anthropic." >&2
+  echo "  author:    $author" >&2
+  echo "  committer: $committer" >&2
+  echo "Commits must be authored as the repo owner." >&2
+  exit 1
+fi
+
+exit 0
