@@ -4,6 +4,7 @@ import type { Config } from './config.js';
 import type { Pool } from './db.js';
 import { ApiError } from './errors.js';
 import { callerRoutes } from './routes/callers.js';
+import { ledgerRoutes } from './routes/ledger.js';
 import { sandboxRoutes } from './routes/sandboxes.js';
 
 export function buildApp(opts: { pool: Pool; config: Pick<Config, 'SERVICE_TOKEN' | 'LOG_LEVEL'> }): FastifyInstance {
@@ -14,7 +15,7 @@ export function buildApp(opts: { pool: Pool; config: Pick<Config, 'SERVICE_TOKEN
 
   app.setErrorHandler((err, req, reply) => {
     if (err instanceof ApiError) {
-      return reply.code(err.statusCode).send({ error: err.code, message: err.message });
+      return reply.code(err.statusCode).send({ error: err.code, message: err.message, ...err.details });
     }
     if (err instanceof ZodError) {
       return reply.code(400).send({
@@ -34,5 +35,6 @@ export function buildApp(opts: { pool: Pool; config: Pick<Config, 'SERVICE_TOKEN
   app.get('/health', async () => ({ ok: true }));
   sandboxRoutes(app, opts.pool);
   callerRoutes(app, opts.pool, opts.config.SERVICE_TOKEN);
+  ledgerRoutes(app, opts.pool, opts.config.SERVICE_TOKEN);
   return app;
 }
