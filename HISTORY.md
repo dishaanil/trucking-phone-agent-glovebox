@@ -8,7 +8,7 @@ Project memory for Glovebox across build sessions. Rules for maintaining this fi
 
 *Overwritten each session.*
 
-- **Phase:** Day 2 built on `feat/day2-ledger`, awaiting commit approval.
+- **Phase:** Day 2 committed on `feat/day2-ledger` (`6b6ca21`), in review as PR #3.
 - **Done:** Day 1 and follow-ups merged (PR #1, #2). Day 2: `db/migrations/002_ledger.sql`; all 7 ledger endpoints (expenses create, correct, confirm, discard; scale tickets create, correct, confirm) with caller context, role checks, validation flags, readbacks, audit events and idempotency. 138 vitest tests pass; lint and typecheck clean.
 - **Next:** Day 3: rate types, profitability at three levels, detention, unpaid loads, mock integrations, SSE. Also on the Day 3 list: `GET /loads?number=`; seed Story A's pickup relative to now. Day 5: call screen suggested stop times from seed data.
 - **Not built:** scale ticket discard (not in the SPEC endpoint list); `/api/src/integrations` (Day 3).
@@ -223,4 +223,4 @@ Project memory for Glovebox across build sessions. Rules for maintaining this fi
 - Assumption (not discussed): DEF price per gallon range $1.50 to $8.00, alongside the approved fuel range.
 - Updated SPEC sections 5, 7 and 10, and the CLAUDE.md idempotency invariant.
 - Files: `db/migrations/002_ledger.sql`; `api/src/ledger-schemas.ts`, `api/src/routes/ledger.ts`, `api/src/services/{expenses,scale-tickets}.ts`, `api/src/lib/{access,caller,idempotency,limits,money,quantity,readback,states}.ts`; `api/src/{app,errors}.ts`, `api/src/services/sandboxes.ts`; tests in `api/test/`.
-- Branch `feat/day2-ledger`, one commit.
+- Branch `feat/day2-ledger`: `6b6ca21` (Day 2 work), plus a docs commit updating this file. Pushed with approval; PR #3 into `main`.
