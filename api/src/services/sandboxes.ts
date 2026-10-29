@@ -24,6 +24,7 @@ const DEMO_CODE_ATTEMPTS = 20;
 
 // Children before parents, since some foreign keys don't cascade.
 const RESET_DELETES = [
+  'delete from idempotency_keys where sandbox_id = $1',
   'delete from events where sandbox_id = $1',
   'delete from detention_claims where sandbox_id = $1',
   'delete from scale_tickets where sandbox_id = $1',

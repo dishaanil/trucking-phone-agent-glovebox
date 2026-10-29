@@ -8,10 +8,10 @@ Project memory for Glovebox across build sessions. Rules for maintaining this fi
 
 *Overwritten each session.*
 
-- **Phase:** Day 1 merged to `main` (PR #1). Day 1 follow-ups on `fix/day1-followups`.
-- **Done:** Day 1 scaffold, plus: recording-sandbox phones are pinned; seed timestamps stay inside the current week; CLAUDE.md seeds wording updated. 57 vitest tests pass; lint and typecheck clean.
-- **Next:** Day 2 (SPEC section 15): expenses and scale tickets. Plan drafted; the seven assumptions are waiting on Disha.
-- **Not done yet:** `/api/src/integrations` interfaces (Day 3); `/agent`, `/web`, `/evals` skeletons (their own days).
+- **Phase:** Day 2 committed on `feat/day2-ledger` (`6b6ca21`), in review as PR #3.
+- **Done:** Day 1 and follow-ups merged (PR #1, #2). Day 2: `db/migrations/002_ledger.sql`; all 7 ledger endpoints (expenses create, correct, confirm, discard; scale tickets create, correct, confirm) with caller context, role checks, validation flags, readbacks, audit events and idempotency. 138 vitest tests pass; lint and typecheck clean.
+- **Next:** Day 3: rate types, profitability at three levels, detention, unpaid loads, mock integrations, SSE. Also on the Day 3 list: `GET /loads?number=`; seed Story A's pickup relative to now. Day 5: call screen suggested stop times from seed data.
+- **Not built:** scale ticket discard (not in the SPEC endpoint list); `/api/src/integrations` (Day 3).
 - **Blockers:** none.
 
 ---
@@ -140,6 +140,27 @@ Project memory for Glovebox across build sessions. Rules for maintaining this fi
 - **Choice:** `origin` is `git@github.com:dishaanil/trucking-phone-agent-glovebox.git`.
 - **Why:** The HTTPS credential in the macOS keychain belongs to a different GitHub account and got a 403. The SSH key authenticates as dishaanil, matching `gh`.
 
+### 2026-10-27: Idempotency keys are unique per tool call and scoped per sandbox
+- **Choice:** Key format `{call_id}:{turn_index}:{tool_call_index}:{tool_name}`, where `tool_call_index` counts tool calls within the turn. Keys are unique per `(sandbox_id, key)`. The `idempotency_keys` table is the single source (the per-table `idempotency_key` columns are dropped). The key is inserted in the same transaction as the write; a replay with the same request returns the stored response, a different request with the same key returns 409.
+- **Why:** The spec's `{call_id}:{turn_index}:{tool_name}` collides when one turn makes several calls to the same tool (three expenses in one breath). One table and one transaction means a key can never exist without its write, or the reverse.
+- **Supersedes:** the key format in SPEC section 7 and CLAUDE.md core invariants.
+
+### 2026-10-27: Day 2 ledger rules
+- **Load references:** the API takes UUIDs (`load_id`, `truck_id`); the agent maps human numbers using caller context. `GET /loads?number=` is added to the Day 3 plan for loads outside the caller's active list.
+- **Expense truck:** an expense with a load uses the load's truck; a `truck_id` that doesn't match is a 400. Without a load, it defaults to the caller's assigned truck, else business overhead.
+- **Corrections:** allowed on pending and confirmed records; a confirmed record goes back to `pending` with a new readback. Every correction writes an event with old and new values.
+- **Discard is a void:** pending records can be voided by anyone allowed to edit them. Confirmed records can be voided by the person who logged them during the same call, and by owners anytime. Always writes an audit event.
+- **Second scale ticket:** logging a ticket when the load already has a pending or confirmed one returns 409 with the existing ticket's id and readback.
+- **Validation:** fictional ceilings (fuel $2,000, DEF $300, toll $200, scale fee $50, parking $100, lumper $500, repair $5,000, washout $150, food $100, other $1,000), fuel $2.00 to $7.00 per gallon, net weight 20,000 to 60,000 lb for hopper bottoms and 1,000 to 48,000 lb for dry vans. Outside these the record is still created pending with `needs_confirmation`. Hard 400s: over $100,000 or 100,000 lb, `occurred_at` more than 5 minutes in the future. `occurred_at` older than 30 days is flagged for confirmation. `occurred_at` defaults to now.
+- **Amount parsing:** strips `$` and commas, rejects more than two decimals.
+- **Confirm:** returns a result per id.
+- **Cash lumper:** reimbursable by default; the caller can override.
+- **Why:** Proposed as Day 2 assumptions; approved with the changes above.
+
+### 2026-10-27: Stop-time demo timing
+- **Choice:** Seed Story A's pickup relative to now (Day 3), and have the call screen generate the suggested stop times from seed data (Day 5).
+- **Why:** A fixed "8:00 AM today" pickup with "left after 11" is in the future if the demo runs before 11 AM Chicago time, and stop-time validation rejects future times.
+
 ---
 
 ## Learnings and gotchas
@@ -159,6 +180,9 @@ Project memory for Glovebox across build sessions. Rules for maintaining this fi
 
 - **2026-10-27:** Changing a Postgres function's argument list with `create or replace` adds an overload instead of replacing it, which makes calls with the old arguments ambiguous. Seed files `drop function if exists` the old signature first.
 - **2026-10-27:** `db/migrate.sh` runs seed files in name order, so shared helpers live in `00_helpers.sql` (digits sort before letters in every locale; `_` does not).
+
+- **2026-10-27:** A unique violation inside a Postgres transaction aborts it. `createTicket` wraps the insert in a savepoint so a concurrent duplicate can still be answered with a 409 that includes the existing ticket.
+- **2026-10-27:** With `insert ... on conflict do nothing` on the idempotency key, a concurrent request with the same key blocks until the first transaction commits, then reads the stored response. Tested with 5 parallel identical requests.
 
 ---
 
@@ -193,3 +217,10 @@ Project memory for Glovebox across build sessions. Rules for maintaining this fi
 - After PR #1 was merged: pinned recording-sandbox phones, kept seed timestamps inside the current week, and updated CLAUDE.md (seeds wording), SPEC sections 5, 8, 11 and 12, and HISTORY.md.
 - Files: `db/seeds/00_helpers.sql` (new), `db/seeds/owner_operator.sql`, `db/seeds/small_fleet.sql`, `api/src/services/sandboxes.ts`, `api/src/schemas.ts`, `api/test/sandboxes.test.ts`, `api/test/seeds.test.ts` (new).
 - Branch `fix/day1-followups`, one commit.
+
+### 2026-10-27: Day 2 ledger
+- Logged the Day 2 decisions (idempotency per tool call, ledger rules, stop-time demo timing). Built migration 002 and the 7 ledger endpoints with tests (unit, endpoint, idempotency incl. concurrency). Checked three key rules by breaking them on purpose and confirming tests fail.
+- Assumption (not discussed): DEF price per gallon range $1.50 to $8.00, alongside the approved fuel range.
+- Updated SPEC sections 5, 7 and 10, and the CLAUDE.md idempotency invariant.
+- Files: `db/migrations/002_ledger.sql`; `api/src/ledger-schemas.ts`, `api/src/routes/ledger.ts`, `api/src/services/{expenses,scale-tickets}.ts`, `api/src/lib/{access,caller,idempotency,limits,money,quantity,readback,states}.ts`; `api/src/{app,errors}.ts`, `api/src/services/sandboxes.ts`; tests in `api/test/`.
+- Branch `feat/day2-ledger`: `6b6ca21` (Day 2 work), plus a docs commit updating this file. Pushed with approval; PR #3 into `main`.

@@ -115,7 +115,7 @@ All commits, pushes and pull requests must be authored as me. Never as Claude.
 - **Weights are integer pounds.** Tons are derived (2,000 lb per ton) only inside the API.
 - **Nothing is confirmed without a readback.** Expenses and scale tickets are created `pending` and become `confirmed` only after the caller confirms the readback. Any clear affirmative counts ("yes", "yep", "yup", "that's right", "ten-four"), including mid-sentence.
 - **Corrections update, never duplicate.** A correction modifies the existing pending record.
-- **Every write from the agent carries an idempotency key** (`{call_id}:{turn_index}:{tool_name}`).
+- **Every write from the agent carries an idempotency key** (`{call_id}:{turn_index}:{tool_call_index}:{tool_name}`), unique per sandbox and stored in `idempotency_keys` in the same transaction as the write.
 - **Timestamps are `timestamptz`, stored in UTC.** Convert using the person's timezone at the edges.
 - **IDs are UUIDs.** Human-facing identifiers (load "4471", truck "2") are separate fields.
 

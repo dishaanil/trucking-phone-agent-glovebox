@@ -4,6 +4,8 @@ export class ApiError extends Error {
     readonly statusCode: number,
     readonly code: string,
     message: string,
+    /** Extra fields merged into the response body, e.g. the existing record on a conflict. */
+    readonly details?: Record<string, unknown>,
   ) {
     super(message);
   }

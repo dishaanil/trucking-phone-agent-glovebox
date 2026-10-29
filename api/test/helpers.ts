@@ -65,3 +65,82 @@ export function first<T>(items: readonly T[]): T {
   if (item === undefined) throw new Error('expected at least one item');
   return item;
 }
+
+// ---------- Agent requests (ledger) ----------
+
+/** A seeded person making agent requests during one call. */
+export interface Actor {
+  sandboxId: string;
+  personId: string;
+  callId: string;
+  turn: number;
+}
+
+export async function actor(ctx: TestContext, sandboxId: string, seedKey: string, callId?: string): Promise<Actor> {
+  const { rows } = await ctx.pool.query<{ id: string }>('select id from people where sandbox_id = $1 and seed_key = $2', [
+    sandboxId,
+    seedKey,
+  ]);
+  return { sandboxId, personId: first(rows).id, callId: callId ?? `call_${randomInt(1e9)}`, turn: 0 };
+}
+
+/** A fresh idempotency key for one tool call: {call_id}:{turn_index}:{tool_call_index}:{tool_name}. */
+export function nextKey(a: Actor, tool: string, toolCallIndex = 0): string {
+  a.turn += 1;
+  return `${a.callId}:${a.turn}:${toolCallIndex}:${tool}`;
+}
+
+export async function agent(
+  ctx: TestContext,
+  a: Actor,
+  method: 'GET' | 'POST' | 'PATCH',
+  url: string,
+  payload?: Record<string, unknown>,
+) {
+  return ctx.app.inject({
+    method,
+    url,
+    headers: {
+      authorization: `Bearer ${SERVICE_TOKEN}`,
+      'x-sandbox-id': a.sandboxId,
+      'x-person-id': a.personId,
+    },
+    ...(payload ? { payload } : {}),
+  });
+}
+
+/** A write with call_id and a fresh idempotency key filled in. */
+export async function agentWrite(
+  ctx: TestContext,
+  a: Actor,
+  method: 'POST' | 'PATCH',
+  url: string,
+  tool: string,
+  payload: Record<string, unknown>,
+) {
+  return agent(ctx, a, method, url, { ...payload, call_id: a.callId, idempotency_key: nextKey(a, tool) });
+}
+
+export async function loadId(ctx: TestContext, sandboxId: string, loadNumber: string): Promise<string> {
+  const { rows } = await ctx.pool.query<{ id: string }>(
+    'select id from loads where sandbox_id = $1 and load_number = $2',
+    [sandboxId, loadNumber],
+  );
+  return first(rows).id;
+}
+
+export async function truckId(ctx: TestContext, sandboxId: string, unit: string): Promise<string> {
+  const { rows } = await ctx.pool.query<{ id: string }>(
+    'select id from trucks where sandbox_id = $1 and unit_number = $2',
+    [sandboxId, unit],
+  );
+  return first(rows).id;
+}
+
+export async function eventsOfType(ctx: TestContext, sandboxId: string, type: string) {
+  const { rows } = await ctx.pool.query<{ payload: Record<string, unknown>; call_id: string | null }>(
+    'select payload, call_id from events where sandbox_id = $1 and type = $2 order by id',
+    [sandboxId, type],
+  );
+  return rows;
+}

@@ -217,10 +217,12 @@ create table scale_tickets (
   net_weight_lbs int not null check (net_weight_lbs > 0),
   location text,
   status record_status not null default 'pending',
+  person_id uuid references people(id),        -- who logged it (002); null for seed data
   call_id text,
-  idempotency_key text unique,
-  created_at timestamptz not null default now()
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()  -- (002)
 );
+-- One active ticket per load (002): unique (sandbox_id, load_id) where status in ('pending', 'confirmed')
 
 create type expense_category as enum
   ('fuel', 'def', 'toll', 'scale_fee', 'parking', 'lumper', 'repair', 'washout', 'food', 'other');
@@ -246,7 +248,6 @@ create table expenses (
   receipt_status text not null default 'missing', -- missing | requested | attached
   source text not null default 'voice',
   call_id text,
-  idempotency_key text unique,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
@@ -262,6 +263,17 @@ create table detention_claims (
   amount_cents int not null,
   status claim_status not null default 'draft',
   notes text
+);
+
+-- 002_ledger.sql: single source of idempotency for agent writes
+create table idempotency_keys (
+  sandbox_id uuid not null references sandboxes(id) on delete cascade,
+  key text not null,                           -- {call_id}:{turn_index}:{tool_call_index}:{tool_name}
+  request_hash text not null,
+  status_code int,
+  response jsonb,
+  created_at timestamptz not null default now(),
+  primary key (sandbox_id, key)
 );
 
 create table events (                          -- audit log + dashboard feed
@@ -347,10 +359,10 @@ Request (from agent):
   "state": "MO",
   "gallons": "140",
   "payment_method": "fuel_card",
-  "load_number": "4471",
+  "load_id": "6f1c...",
   "occurred_at": "2026-10-27T14:05:00-05:00",
   "call_id": "call_abc",
-  "idempotency_key": "call_abc:7:log_expense"
+  "idempotency_key": "call_abc:7:0:log_expense"
 }
 ```
 
@@ -361,14 +373,37 @@ Response:
   "status": "pending",
   "amount_cents": 51240,
   "amount_display": "512 dollars and 40 cents",
-  "readback": "Fuel, 512 dollars and 40 cents, 140 gallons at Love's in Joplin, Missouri."
+  "load_number": "4471",
+  "truck_unit": "1",
+  "readback": "Fuel, 512 dollars and 40 cents, 140 gallons at Love's in Joplin, Missouri.",
+  "needs_confirmation": false,
+  "confirmation_reasons": [],
+  "confirmation_prompt": null
 }
 ```
 
+The API takes UUIDs (`load_id`, `truck_id`); the agent maps human load and truck numbers using the caller context. An expense with a load uses the load's truck, and a different `truck_id` is a 400. Without a load, it defaults to the caller's own truck, else business overhead (owners only).
+
+### Caller context and idempotency
+- Agent endpoints require the service token plus `x-sandbox-id` and `x-person-id` headers. Roles are read from the database, never from the request.
+- Every agent write carries `call_id` and an `idempotency_key` of the form `{call_id}:{turn_index}:{tool_call_index}:{tool_name}`, where `tool_call_index` counts tool calls within the turn (so three expenses in one breath get three keys).
+- Keys are unique per `(sandbox_id, key)` in the `idempotency_keys` table, the single source of idempotency. The key is inserted in the same transaction as the write; if the write fails, neither is kept.
+- A replay with the same request returns the stored response (header `idempotent-replayed: true`). The same key with a different request, route or caller is a 409.
+
+### Corrections, confirmation and voids
+- **Correct** (`PATCH`): updates the record in place, never a duplicate. Allowed on pending and confirmed records; a confirmed record goes back to `pending` with a new readback. Every correction writes an event with old and new values. A correction that changes nothing is a no-op.
+- **Confirm**: returns a result per id (`confirmed`, `already_confirmed`, `discarded`, `not_found`, `forbidden`).
+- **Discard is a void**: pending records can be voided by anyone allowed to edit them. Confirmed records can be voided by the person who logged them during the same call, and by owners anytime. Always writes an audit event.
+- **Scale tickets**: a load has at most one pending or confirmed ticket. Logging another returns 409 `ticket_exists` with the existing ticket's id and readback, so the agent corrects it instead.
+- **Who can edit**: drivers, records they logged or that are on their own load or truck; owners, anything in the business. Otherwise 403 with a speakable `message`.
+
 ### Validation rules
-- Amounts must parse to a positive value under a per-category ceiling (e.g. fuel under $2,000, toll under $200). Over the ceiling returns `needs_confirmation: true` so the agent double-checks.
-- Fuel price per gallon outside a plausible range is flagged for re-confirmation.
-- Scale ticket net weight outside a plausible range for the trailer type is flagged for re-confirmation.
+- Amounts are decimal strings: `$` and commas are stripped, more than two decimals is a 400, and so is anything over $100,000.
+- Over a per-category ceiling (fuel $2,000, DEF $300, toll $200, scale fee $50, parking $100, lumper $500, repair $5,000, washout $150, food $100, other $1,000), the record is still created pending with `needs_confirmation: true`, a reason code and a speakable `confirmation_prompt`, so the agent double-checks.
+- Price per gallon outside $2.00 to $7.00 (fuel) or $1.50 to $8.00 (DEF) is flagged the same way. Gallons on any other category is a 400.
+- Scale ticket net weight outside 20,000 to 60,000 lb (hopper bottom) or 1,000 to 48,000 lb (dry van) is flagged; over 100,000 lb is a 400. Weights are whole pounds.
+- `occurred_at` defaults to now. More than 5 minutes in the future is a 400; more than 30 days ago is flagged.
+- Cash lumper fees are reimbursable by default; the caller can override.
 - `departed_at` must be after `arrived_at`; neither may be in the future.
 - Confirming a record that is not `pending` is a no-op, not an error.
 - Owner-only endpoints return `403` with a speakable `message` for driver-only callers.
@@ -466,7 +501,7 @@ greet by name, state current load
 The agent resolves load numbers, truck numbers and stop names to IDs using the context fetched at call start, so the LLM works with human terms, not UUIDs.
 
 ### Session state (per call)
-- `call_id`, `turn_index`, `sandbox_id`, `person_id`, roles
+- `call_id`, `turn_index`, `tool_call_index` (per turn, for idempotency keys), `sandbox_id`, `person_id`, roles
 - active loads and trucks from caller resolution
 - pending record IDs awaiting confirmation
 - tool error counts, for the two-strikes escalation rule
