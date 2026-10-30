@@ -8,7 +8,7 @@ Project memory for Glovebox across build sessions. Rules for maintaining this fi
 
 *Overwritten each session.*
 
-- **Phase:** Day 3a (profitability) built on `feat/day3-profitability`, awaiting commit approval.
+- **Phase:** Day 3a (profitability) committed on `feat/day3-profitability` (`5d8de58`), pushed and in review as a PR into `main`.
 - **Done:** Days 1 and 2 merged (PR #1, #2, #3). 3a: `db/migrations/003_timezones.sql` (`businesses.timezone`, `stops.timezone`); seeds set both and compute appointments in facility local time; `GET /loads/:id/profitability` and `GET /loads?number=`. 158 vitest tests pass; lint and typecheck clean.
 - **Next:** 3b stop times, detention and claims (incl. `HH:MM` resolution, overnight wait test, delivery sets status, Story A pickup relative to now); 3c summaries, unpaid loads, mocks and demo endpoints; 3d SSE. Day 5: call screen suggested stop times from seed data.
 - **Not built:** scale ticket discard (not in the SPEC endpoint list); `/api/src/integrations` (3c).
@@ -199,6 +199,11 @@ Project memory for Glovebox across build sessions. Rules for maintaining this fi
 - **Why:** Works with more than one API instance; notify payloads are capped at 8 KB.
 - **Alternatives:** an in-process emitter (breaks with two instances).
 
+### 2026-10-29: Keep the Truck 2 loss in the small-fleet seed
+- **Choice:** Leave the seed as is: load 7705 pays $384.30 against $448.40 of fuel, so Truck 2 can show a loss this week.
+- **Why:** Showing some loss is realistic and makes the numbers more believable in the demo.
+- **Alternatives:** retune the fuel amounts so every truck is profitable.
+
 ---
 
 ## Learnings and gotchas
@@ -235,7 +240,6 @@ Project memory for Glovebox across build sessions. Rules for maintaining this fi
 - Are per-ton rates the usual pay model for small grain haulers, or mixed with flat rates?
 - Should owners review and approve driver-logged expenses? Not in the demo.
 - Run the FMCSA SAFER and web name check on all seed business and facility names before publishing. New Day 1 names to include: Corliss Packaging, Tamsin Foods Warehouse, Orrin Valley Foods, Lakemont Grocery DC, Sutter Ridge Farm, Dellacourt Farm, Ostrander Fertilizer Depot, Halvern Farm Co-op, Benton Truck and Trailer Repair.
-- Truck 2 loses money in the small-fleet seed: load 7705 pays $384.30 against $448.40 of seeded fuel (118 gallons for 92 loaded miles). With Story B's new fuel and washout, "How did truck 2 do this week?" may answer with a loss. Retune the seed amounts in 3c, or keep it?
 
 ---
 
@@ -271,4 +275,4 @@ Project memory for Glovebox across build sessions. Rules for maintaining this fi
 - Planned Day 3 as four PRs and logged the Day 3 decisions (timezones, `HH:MM` resolution, revenue by delivery week, projected per-ton revenue, late-arrival claims, delivery status change, demo endpoints, SSE) and two Day 7 deploy gotchas.
 - Built migration 003, seed timezones, revenue math (`api/src/lib/revenue.ts`), `api/src/services/loads.ts`, `api/src/routes/loads.ts`, schemas, tests (`api/test/loads.test.ts`, seed checks). Checked two rules (confirmed-only costs, driver access) by breaking them and confirming tests fail.
 - Updated SPEC sections 5, 7, 8 and 13 (Story B step 3 and 4 wording).
-- Branch `feat/day3-profitability`, one commit.
+- Branch `feat/day3-profitability`: `5d8de58` (3a work), plus a docs commit updating this file. Pushed with approval; PR into `main`.
