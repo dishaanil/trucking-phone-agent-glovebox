@@ -3,22 +3,28 @@ import type { z } from 'zod';
 import type pg from 'pg';
 import type { Pool } from '../db.js';
 import {
+  ClaimResponse,
   ConfirmBody,
   ConfirmResponse,
+  CreateClaimBody,
   CreateExpenseBody,
   CreateTicketBody,
+  DetentionResponse,
   DiscardBody,
   DiscardResponse,
   ExpenseResponse,
   IdParams,
   PatchExpenseBody,
   PatchTicketBody,
+  StopTimesBody,
+  StopTimesResponse,
   TicketResponse,
 } from '../ledger-schemas.js';
 import { getCaller, requireCaller, type Caller } from '../lib/caller.js';
 import { idempotentWrite, type WriteResult } from '../lib/idempotency.js';
 import { confirmExpenses, correctExpense, createExpense, discardExpense } from '../services/expenses.js';
 import { confirmTickets, correctTicket, createTicket } from '../services/scale-tickets.js';
+import { checkDetention, createDetentionClaim, recordStopTimes } from '../services/stops.js';
 
 export function ledgerRoutes(app: FastifyInstance, pool: Pool, serviceToken: string): void {
   const preHandler = requireCaller(pool, serviceToken);
@@ -97,6 +103,27 @@ export function ledgerRoutes(app: FastifyInstance, pool: Pool, serviceToken: str
     const body = ConfirmBody.parse(req.body);
     return write(req, reply, 'POST /scale-tickets/confirm', body, {}, ConfirmResponse, (db, caller) =>
       confirmTickets(db, caller, body.ids, body.call_id),
+    );
+  });
+
+  app.post('/stops/:id/times', { preHandler }, async (req, reply) => {
+    const { id } = IdParams.parse(req.params);
+    const body = StopTimesBody.parse(req.body);
+    return write(req, reply, 'POST /stops/:id/times', body, { id }, StopTimesResponse, (db, caller) =>
+      recordStopTimes(db, caller, id, body),
+    );
+  });
+
+  app.get('/stops/:id/detention', { preHandler }, async (req) => {
+    const { id } = IdParams.parse(req.params);
+    return DetentionResponse.parse(await checkDetention(pool, getCaller(req), id));
+  });
+
+  app.post('/stops/:id/detention-claims', { preHandler }, async (req, reply) => {
+    const { id } = IdParams.parse(req.params);
+    const body = CreateClaimBody.parse(req.body);
+    return write(req, reply, 'POST /stops/:id/detention-claims', body, { id }, ClaimResponse, (db, caller) =>
+      createDetentionClaim(db, caller, id, body),
     );
   });
 }
