@@ -27,8 +27,8 @@ declare
   v_7708 uuid;
   v_7710 uuid;
 begin
-  insert into businesses (sandbox_id, name, demo_dot)
-  values (p_sandbox_id, 'Cedar Fork Hauling LLC', 'DEMO-0002')
+  insert into businesses (sandbox_id, name, demo_dot, timezone)
+  values (p_sandbox_id, 'Cedar Fork Hauling LLC', 'DEMO-0002', tz)
   returning id into v_business;
 
   insert into people (sandbox_id, business_id, seed_key, full_name, is_owner, is_driver, seed_phone, timezone)
@@ -67,12 +67,12 @@ begin
           seed_this_week(p_now, tz, 0.14, interval '2 days 18 hours'),
           seed_this_week(p_now, tz, 0.56, interval '1 day 4 hours'))
   returning id into v_7708;
-  insert into stops (sandbox_id, load_id, type, sequence, facility_name, city, state, arrived_at, departed_at)
+  insert into stops (sandbox_id, load_id, type, sequence, facility_name, city, state, timezone, arrived_at, departed_at)
   values
-    (p_sandbox_id, v_7708, 'pickup', 1, 'Ostrander Fertilizer Depot', 'Cairo', 'IL',
+    (p_sandbox_id, v_7708, 'pickup', 1, 'Ostrander Fertilizer Depot', 'Cairo', 'IL', tz,
      seed_this_week(p_now, tz, 0.05, interval '3 days 2 hours'),
      seed_this_week(p_now, tz, 0.06, interval '3 days 1 hour 10 minutes')),
-    (p_sandbox_id, v_7708, 'delivery', 2, 'Halvern Farm Co-op', 'Mayfield', 'KY',
+    (p_sandbox_id, v_7708, 'delivery', 2, 'Halvern Farm Co-op', 'Mayfield', 'KY', tz,
      seed_this_week(p_now, tz, 0.10, interval '2 days 22 hours'),
      seed_this_week(p_now, tz, 0.11, interval '2 days 21 hours'));
 
@@ -84,12 +84,12 @@ begin
           seed_this_week(p_now, tz, 0.40, interval '1 day 20 hours'),
           seed_this_week(p_now, tz, 0.55, interval '1 day 6 hours'))
   returning id into v_7710;
-  insert into stops (sandbox_id, load_id, type, sequence, facility_name, city, state, arrived_at, departed_at)
+  insert into stops (sandbox_id, load_id, type, sequence, facility_name, city, state, timezone, arrived_at, departed_at)
   values
-    (p_sandbox_id, v_7710, 'pickup', 1, 'Dellacourt Farm', 'Princeton', 'KY',
+    (p_sandbox_id, v_7710, 'pickup', 1, 'Dellacourt Farm', 'Princeton', 'KY', tz,
      seed_this_week(p_now, tz, 0.22, interval '2 days 5 hours'),
      seed_this_week(p_now, tz, 0.23, interval '2 days 4 hours 25 minutes')),
-    (p_sandbox_id, v_7710, 'delivery', 2, 'Millbrook Grain Co. river terminal', 'Paducah', 'KY',
+    (p_sandbox_id, v_7710, 'delivery', 2, 'Millbrook Grain Co. river terminal', 'Paducah', 'KY', tz,
      seed_this_week(p_now, tz, 0.31, interval '2 days 2 hours 45 minutes'),
      seed_this_week(p_now, tz, 0.32, interval '2 days 2 hours 15 minutes'));
   insert into scale_tickets (sandbox_id, load_id, ticket_number, net_weight_lbs, location, status, created_at)
@@ -102,12 +102,12 @@ begin
   values (p_sandbox_id, v_business, v_truck2, v_tommy, v_millbrook, '7705', 'soybeans',
           'per_ton', 1500, 92, 'delivered')
   returning id into v_7705;
-  insert into stops (sandbox_id, load_id, type, sequence, facility_name, city, state, arrived_at, departed_at)
+  insert into stops (sandbox_id, load_id, type, sequence, facility_name, city, state, timezone, arrived_at, departed_at)
   values
-    (p_sandbox_id, v_7705, 'pickup', 1, 'Sutter Ridge Farm', 'Marion', 'KY',
+    (p_sandbox_id, v_7705, 'pickup', 1, 'Sutter Ridge Farm', 'Marion', 'KY', tz,
      seed_this_week(p_now, tz, 0.28, interval '2 days 3 hours 30 minutes'),
      seed_this_week(p_now, tz, 0.29, interval '2 days 2 hours 55 minutes')),
-    (p_sandbox_id, v_7705, 'delivery', 2, 'Millbrook Grain Co. river terminal', 'Paducah', 'KY',
+    (p_sandbox_id, v_7705, 'delivery', 2, 'Millbrook Grain Co. river terminal', 'Paducah', 'KY', tz,
      seed_this_week(p_now, tz, 0.34, interval '2 days 1 hour'),
      seed_this_week(p_now, tz, 0.35, interval '2 days 30 minutes'));
   insert into scale_tickets (sandbox_id, load_id, ticket_number, net_weight_lbs, location, status, created_at)
@@ -121,12 +121,12 @@ begin
   values (p_sandbox_id, v_business, v_truck2, v_tommy, v_millbrook, '7712', 'corn',
           'per_ton', 1400, 85, 'delivered')
   returning id into v_7712;
-  insert into stops (sandbox_id, load_id, type, sequence, facility_name, city, state, arrived_at, departed_at)
+  insert into stops (sandbox_id, load_id, type, sequence, facility_name, city, state, timezone, arrived_at, departed_at)
   values
-    (p_sandbox_id, v_7712, 'pickup', 1, 'Sutter Ridge Farm', 'Marion', 'KY',
+    (p_sandbox_id, v_7712, 'pickup', 1, 'Sutter Ridge Farm', 'Marion', 'KY', tz,
      seed_this_week(p_now, tz, 0.86, interval '4 hours'),
      seed_this_week(p_now, tz, 0.89, interval '3 hours 30 minutes')),
-    (p_sandbox_id, v_7712, 'delivery', 2, 'Millbrook Grain Co. river terminal', 'Paducah', 'KY',
+    (p_sandbox_id, v_7712, 'delivery', 2, 'Millbrook Grain Co. river terminal', 'Paducah', 'KY', tz,
      seed_this_week(p_now, tz, 0.94, interval '90 minutes'),
      seed_this_week(p_now, tz, 0.97, interval '60 minutes'));
 

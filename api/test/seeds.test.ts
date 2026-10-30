@@ -135,3 +135,48 @@ describe('owner-operator seed', () => {
     });
   });
 });
+
+describe('both seeds: stops and timezones', () => {
+  const scenarios = ['owner_operator', 'small_fleet'] as const;
+  const WEDNESDAY = '2026-10-28T14:00:00-05:00';
+
+  it.each(scenarios)('sets a delivery departure on every delivered load (%s)', async (scenario) => {
+    await withSeed(scenario, WEDNESDAY, async (client, sandboxId) => {
+      const { rows } = await client.query<{ load_number: string }>(
+        `select l.load_number from loads l
+           join stops d on d.load_id = l.id and d.sandbox_id = l.sandbox_id and d.type = 'delivery'
+          where l.sandbox_id = $1 and l.status in ('delivered', 'invoiced', 'paid') and d.departed_at is null`,
+        [sandboxId],
+      );
+      expect(rows).toEqual([]);
+    });
+  });
+
+  it.each(scenarios)('gives the business and every stop a timezone (%s)', async (scenario) => {
+    await withSeed(scenario, WEDNESDAY, async (client, sandboxId) => {
+      const stops = await client.query('select 1 from stops where sandbox_id = $1 and timezone is null', [sandboxId]);
+      expect(stops.rows).toEqual([]);
+      const biz = await client.query<{ timezone: string }>('select timezone from businesses where sandbox_id = $1', [
+        sandboxId,
+      ]);
+      expect(biz.rows).toEqual([{ timezone: 'America/Chicago' }]);
+    });
+  });
+
+  it('sets appointments in local facility time', async () => {
+    await withSeed('owner_operator', WEDNESDAY, async (client, sandboxId) => {
+      const { rows } = await client.query<{ facility_name: string; local: string }>(
+        `select s.facility_name, to_char(s.appointment_at at time zone s.timezone, 'HH24:MI') as local
+           from stops s join loads l on l.id = s.load_id and l.sandbox_id = s.sandbox_id
+          where s.sandbox_id = $1 and l.load_number in ('4471', '4502') order by l.load_number, s.sequence`,
+        [sandboxId],
+      );
+      expect(rows.map((r) => [r.facility_name, r.local])).toEqual([
+        ['Harlan Point Cold Storage', '08:00'],
+        ['Southmere Distribution', '14:00'],
+        ['Corliss Packaging', '09:00'],
+        ['Tamsin Foods Warehouse', '07:00'],
+      ]);
+    });
+  });
+});

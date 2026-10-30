@@ -8,10 +8,10 @@ Project memory for Glovebox across build sessions. Rules for maintaining this fi
 
 *Overwritten each session.*
 
-- **Phase:** Day 2 committed on `feat/day2-ledger` (`6b6ca21`), in review as PR #3.
-- **Done:** Day 1 and follow-ups merged (PR #1, #2). Day 2: `db/migrations/002_ledger.sql`; all 7 ledger endpoints (expenses create, correct, confirm, discard; scale tickets create, correct, confirm) with caller context, role checks, validation flags, readbacks, audit events and idempotency. 138 vitest tests pass; lint and typecheck clean.
-- **Next:** Day 3: rate types, profitability at three levels, detention, unpaid loads, mock integrations, SSE. Also on the Day 3 list: `GET /loads?number=`; seed Story A's pickup relative to now. Day 5: call screen suggested stop times from seed data.
-- **Not built:** scale ticket discard (not in the SPEC endpoint list); `/api/src/integrations` (Day 3).
+- **Phase:** Day 3a (profitability) built on `feat/day3-profitability`, awaiting commit approval.
+- **Done:** Days 1 and 2 merged (PR #1, #2, #3). 3a: `db/migrations/003_timezones.sql` (`businesses.timezone`, `stops.timezone`); seeds set both and compute appointments in facility local time; `GET /loads/:id/profitability` and `GET /loads?number=`. 158 vitest tests pass; lint and typecheck clean.
+- **Next:** 3b stop times, detention and claims (incl. `HH:MM` resolution, overnight wait test, delivery sets status, Story A pickup relative to now); 3c summaries, unpaid loads, mocks and demo endpoints; 3d SSE. Day 5: call screen suggested stop times from seed data.
+- **Not built:** scale ticket discard (not in the SPEC endpoint list); `/api/src/integrations` (3c).
 - **Blockers:** none.
 
 ---
@@ -161,6 +161,44 @@ Project memory for Glovebox across build sessions. Rules for maintaining this fi
 - **Choice:** Seed Story A's pickup relative to now (Day 3), and have the call screen generate the suggested stop times from seed data (Day 5).
 - **Why:** A fixed "8:00 AM today" pickup with "left after 11" is in the future if the demo runs before 11 AM Chicago time, and stop-time validation rejects future times.
 
+### 2026-10-29: Day 3 split into four PRs
+- **Choice:** 3a profitability and `GET /loads?number=`; 3b stop times, detention and claims; 3c truck and business summaries, unpaid loads and mocks; 3d SSE.
+- **Why:** Day 3 is too large for one reviewable change.
+
+### 2026-10-29: Timezones for businesses and stops
+- **Choice:** Add `businesses.timezone` (default `America/Chicago`) for "this week" ranges, and `stops.timezone`, seeded per facility. Local `HH:MM` stop times resolve in the stop's timezone, falling back to the business timezone.
+- **Why:** SPEC says "business timezone" but the table had none, and loads cross time zones (Chicago to Atlanta).
+- **Alternatives:** the owner's `people.timezone`.
+
+### 2026-10-29: Resolving `HH:MM` stop times
+- **Choice:** Arrival resolves to the occurrence nearest the appointment (nearest now if there is no appointment). Departure resolves to the first occurrence after arrival that isn't in the future. An overnight wait (arrive 22:00, leave 02:00) is tested.
+- **Why:** The LLM passes the caller's words, not dates; the API does the date math.
+
+### 2026-10-29: Revenue counts in the week of delivery
+- **Choice:** A load's revenue counts in the range containing its delivery stop's departure. Expenses count by `occurred_at`, including those on loads not yet delivered. Seeds set delivery departure times on every delivered load. Spoken summaries mention in-transit loads whose costs are included.
+- **Why:** Revenue is earned at delivery; costs happen when they happen.
+
+### 2026-10-29: Revenue uses confirmed scale tickets only, with a projection
+- **Choice:** Per-ton revenue uses only a confirmed ticket. With a pending ticket, profitability also returns a projected amount so the dashboard can show it as pending. Story B step 3 is reworded so revenue switches at confirmation.
+- **Why:** Keeps "nothing counts until read back and confirmed" while the dashboard still shows the change.
+
+### 2026-10-29: Detention claims on late arrivals
+- **Choice:** When the payer requires on-time arrival and the driver was late, a claim can still be drafted, with the note "late arrival, detention may be disputed". The agent says the note out loud.
+- **Why:** The driver decides; the note sets expectations.
+
+### 2026-10-29: Stop times, delivery and access
+- **Choice:** Stop times have no pending or confirmed state; they are written with a readback and a correction overwrites them, with an event carrying old and new values. A departure from the final delivery stop sets an in-transit load to `delivered`, with an event. Stop times, detention checks and claims are open to drivers on their own loads and to owners; summaries and unpaid loads are owner-only.
+- **Why:** Proposed as Day 3 assumptions 5 to 7; assumption 6 (no status change) was reversed.
+
+### 2026-10-29: Demo endpoints for mocks
+- **Choice:** `POST /sandboxes/:id/loads/:loadId/simulate-payment` and `POST /sandboxes/:id/detention-claims/:id/send`, public by sandbox id like the other sandbox routes. Each checks that the record belongs to the sandbox. Event payloads never contain phone numbers.
+- **Why:** The Day 5 dashboard needs visible, testable mock controls.
+
+### 2026-10-29: SSE via Postgres LISTEN/NOTIFY
+- **Choice:** A trigger on `events` sends `pg_notify` with sandbox and event id only; one listener connection fans out to streams, which honor `Last-Event-ID`. The listener uses a direct (non-pooled) `DATABASE_URL`. Heartbeat every 20 seconds.
+- **Why:** Works with more than one API instance; notify payloads are capped at 8 KB.
+- **Alternatives:** an in-process emitter (breaks with two instances).
+
 ---
 
 ## Learnings and gotchas
@@ -184,6 +222,9 @@ Project memory for Glovebox across build sessions. Rules for maintaining this fi
 - **2026-10-27:** A unique violation inside a Postgres transaction aborts it. `createTicket` wraps the insert in a savepoint so a concurrent duplicate can still be answered with a 409 that includes the existing ticket.
 - **2026-10-27:** With `insert ... on conflict do nothing` on the idempotency key, a concurrent request with the same key blocks until the first transaction commits, then reads the stored response. Tested with 5 parallel identical requests.
 
+- **2026-10-29 (Day 7 deploy gotcha):** The SSE listener needs a direct, non-pooled Postgres connection; LISTEN does not work through a transaction-mode pooler.
+- **2026-10-29 (Day 7 deploy gotcha):** Cloud Run closes requests at its request timeout (default 5 minutes), which cuts SSE streams. Raise the timeout on deploy; clients reconnect with `Last-Event-ID`.
+
 ---
 
 ## Open threads
@@ -194,6 +235,7 @@ Project memory for Glovebox across build sessions. Rules for maintaining this fi
 - Are per-ton rates the usual pay model for small grain haulers, or mixed with flat rates?
 - Should owners review and approve driver-logged expenses? Not in the demo.
 - Run the FMCSA SAFER and web name check on all seed business and facility names before publishing. New Day 1 names to include: Corliss Packaging, Tamsin Foods Warehouse, Orrin Valley Foods, Lakemont Grocery DC, Sutter Ridge Farm, Dellacourt Farm, Ostrander Fertilizer Depot, Halvern Farm Co-op, Benton Truck and Trailer Repair.
+- Truck 2 loses money in the small-fleet seed: load 7705 pays $384.30 against $448.40 of seeded fuel (118 gallons for 92 loaded miles). With Story B's new fuel and washout, "How did truck 2 do this week?" may answer with a loss. Retune the seed amounts in 3c, or keep it?
 
 ---
 
@@ -224,3 +266,9 @@ Project memory for Glovebox across build sessions. Rules for maintaining this fi
 - Updated SPEC sections 5, 7 and 10, and the CLAUDE.md idempotency invariant.
 - Files: `db/migrations/002_ledger.sql`; `api/src/ledger-schemas.ts`, `api/src/routes/ledger.ts`, `api/src/services/{expenses,scale-tickets}.ts`, `api/src/lib/{access,caller,idempotency,limits,money,quantity,readback,states}.ts`; `api/src/{app,errors}.ts`, `api/src/services/sandboxes.ts`; tests in `api/test/`.
 - Branch `feat/day2-ledger`: `6b6ca21` (Day 2 work), plus a docs commit updating this file. Pushed with approval; PR #3 into `main`.
+
+### 2026-10-29: Day 3a profitability
+- Planned Day 3 as four PRs and logged the Day 3 decisions (timezones, `HH:MM` resolution, revenue by delivery week, projected per-ton revenue, late-arrival claims, delivery status change, demo endpoints, SSE) and two Day 7 deploy gotchas.
+- Built migration 003, seed timezones, revenue math (`api/src/lib/revenue.ts`), `api/src/services/loads.ts`, `api/src/routes/loads.ts`, schemas, tests (`api/test/loads.test.ts`, seed checks). Checked two rules (confirmed-only costs, driver access) by breaking them and confirming tests fail.
+- Updated SPEC sections 5, 7, 8 and 13 (Story B step 3 and 4 wording).
+- Branch `feat/day3-profitability`, one commit.

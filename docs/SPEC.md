@@ -120,7 +120,8 @@ create table businesses (
   id uuid primary key default gen_random_uuid(),
   sandbox_id uuid not null references sandboxes(id) on delete cascade,
   name text not null,
-  demo_dot text not null default 'DEMO-0001'   -- never a realistic DOT number
+  demo_dot text not null default 'DEMO-0001',  -- never a realistic DOT number
+  timezone text not null default 'America/Chicago' -- (003) "this week" ranges
 );
 
 create table people (
@@ -202,6 +203,7 @@ create table stops (
   facility_name text not null,
   city text not null,
   state char(2) not null,
+  timezone text,                               -- (003) facility's timezone; null = business timezone
   appointment_at timestamptz,
   arrived_at timestamptz,
   departed_at timestamptz
@@ -338,6 +340,7 @@ All requests and responses validated with zod. Every request carries a caller co
 | POST | `/stops/:id/times` | Record arrival and/or departure |
 | GET | `/stops/:id/detention` | Compute detention (no write) |
 | POST | `/stops/:id/detention-claims` | Create a draft detention claim |
+| GET | `/loads?number=` | Find a load by its number, with stops (for loads outside the caller's active list) |
 | GET | `/loads/:id/profitability` | Load revenue, costs, net, cost per mile |
 
 ### Owner only
@@ -416,7 +419,7 @@ flat:     revenue = rate_cents
 per_ton:  revenue = round(confirmed_ticket_net_weight_lbs / 2000 * rate_cents)
 per_mile: revenue = loaded_miles * rate_cents
 ```
-A per-ton load with no confirmed scale ticket has `revenue = null` and the agent says pay is pending the scale ticket.
+A per-ton load with no confirmed scale ticket has `revenue = null` and the agent says pay is pending the scale ticket. If the load has a pending ticket, profitability also returns `projected_revenue_cents` (what that ticket would pay) so the dashboard can show it as pending. Per-ton pay is computed in integer cents, `round(lbs * rate / 2000)` with halves rounded up.
 
 ### Profitability at three levels
 ```
@@ -430,7 +433,7 @@ load:
 truck (range):    sum over loads on the truck in range + truck overhead expenses in range
 business (range): sum over trucks + business overhead
 ```
-**Ranges:** "this week" is the calendar week from Monday 00:00 to now, in the business's timezone. "Last 7 days" is supported when the caller says it.
+**Ranges:** "this week" is the calendar week from Monday 00:00 to now, in the business's timezone (`businesses.timezone`). "Last 7 days" is supported when the caller says it. A load's revenue counts in the range containing its delivery stop's departure; expenses count by `occurred_at`, including expenses on loads not yet delivered. Spoken summaries mention in-transit loads whose costs are included.
 
 Each response includes a one-sentence `summary` for the agent to speak, e.g. "Truck 2 grossed 1,850 this week, spent 640, so it netted 1,210."
 
@@ -595,8 +598,8 @@ Each seed template is a Postgres function, `seed_owner_operator(sandbox_id uuid)
 **Call 1, Tommy (hired driver, Truck 2):**
 1. Agent greets Tommy, confirms load 7712 is delivered and needs a scale ticket.
 2. Tommy gives the ticket weight, a fuel stop and a washout fee in one breath.
-3. Pending rows appear; load 7712's revenue switches from "pending scale ticket" to a dollar amount.
-4. Tommy corrects the weight mid-readback; same row updates. He confirms.
+3. Pending rows appear; load 7712 shows a projected amount, still marked pending.
+4. Tommy corrects the weight mid-readback; same row updates. He confirms, and load 7712's revenue switches from "pending scale ticket" to a dollar amount.
 5. Curveball: "How much did we make this week?" Agent: "That's one for Ray to check. Want the numbers on your load instead?"
 
 **Call 2, Ray (owner, Truck 1):**

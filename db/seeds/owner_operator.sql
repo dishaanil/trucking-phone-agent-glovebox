@@ -12,6 +12,8 @@ returns void
 language plpgsql as $$
 declare
   tz constant text := 'America/Chicago';
+  tz_east constant text := 'America/New_York';
+  tz_indiana constant text := 'America/Indiana/Indianapolis';
   v_today date := (p_now at time zone tz)::date;
   v_monday date := (seed_week_start(p_now, tz) at time zone tz)::date;
   v_business uuid;
@@ -22,8 +24,8 @@ declare
   v_4502 uuid;
   v_4390 uuid;
 begin
-  insert into businesses (sandbox_id, name, demo_dot)
-  values (p_sandbox_id, 'Kestrel Line Freight LLC', 'DEMO-0001')
+  insert into businesses (sandbox_id, name, demo_dot, timezone)
+  values (p_sandbox_id, 'Kestrel Line Freight LLC', 'DEMO-0001', tz)
   returning id into v_business;
 
   insert into people (sandbox_id, business_id, seed_key, full_name, is_owner, is_driver, seed_phone, timezone)
@@ -47,12 +49,13 @@ begin
           'flat', 240000, 715, 'in_transit')
   returning id into v_4471;
 
-  insert into stops (sandbox_id, load_id, type, sequence, facility_name, city, state, appointment_at)
+  -- Appointments are local to each facility.
+  insert into stops (sandbox_id, load_id, type, sequence, facility_name, city, state, timezone, appointment_at)
   values
-    (p_sandbox_id, v_4471, 'pickup', 1, 'Harlan Point Cold Storage', 'Chicago', 'IL',
+    (p_sandbox_id, v_4471, 'pickup', 1, 'Harlan Point Cold Storage', 'Chicago', 'IL', tz,
      (v_today + time '08:00') at time zone tz),
-    (p_sandbox_id, v_4471, 'delivery', 2, 'Southmere Distribution', 'Atlanta', 'GA',
-     (v_today + 1 + time '14:00') at time zone tz);
+    (p_sandbox_id, v_4471, 'delivery', 2, 'Southmere Distribution', 'Atlanta', 'GA', tz_east,
+     (v_today + 1 + time '14:00') at time zone tz_east);
 
   -- Load 4502: booked for later this week (gives the "which load?" question).
   insert into loads (sandbox_id, business_id, truck_id, driver_id, payer_id, load_number, commodity,
@@ -61,11 +64,11 @@ begin
           'flat', 165000, 390, 'booked')
   returning id into v_4502;
 
-  insert into stops (sandbox_id, load_id, type, sequence, facility_name, city, state, appointment_at)
+  insert into stops (sandbox_id, load_id, type, sequence, facility_name, city, state, timezone, appointment_at)
   values
-    (p_sandbox_id, v_4502, 'pickup', 1, 'Corliss Packaging', 'Atlanta', 'GA',
-     (v_today + 2 + time '09:00') at time zone tz),
-    (p_sandbox_id, v_4502, 'delivery', 2, 'Tamsin Foods Warehouse', 'Memphis', 'TN',
+    (p_sandbox_id, v_4502, 'pickup', 1, 'Corliss Packaging', 'Atlanta', 'GA', tz_east,
+     (v_today + 2 + time '09:00') at time zone tz_east),
+    (p_sandbox_id, v_4502, 'delivery', 2, 'Tamsin Foods Warehouse', 'Memphis', 'TN', tz,
      (v_today + 3 + time '07:00') at time zone tz);
 
   -- Load 4390: delivered last week (Thursday to Friday), invoiced Saturday, unpaid.
@@ -75,14 +78,14 @@ begin
           'flat', 210000, 640, 'invoiced', (v_monday - 2 + time '10:00') at time zone tz)
   returning id into v_4390;
 
-  insert into stops (sandbox_id, load_id, type, sequence, facility_name, city, state,
+  insert into stops (sandbox_id, load_id, type, sequence, facility_name, city, state, timezone,
                      appointment_at, arrived_at, departed_at)
   values
-    (p_sandbox_id, v_4390, 'pickup', 1, 'Orrin Valley Foods', 'Indianapolis', 'IN',
-     (v_monday - 4 + time '07:00') at time zone tz,
-     (v_monday - 4 + time '06:45') at time zone tz,
-     (v_monday - 4 + time '08:30') at time zone tz),
-    (p_sandbox_id, v_4390, 'delivery', 2, 'Lakemont Grocery DC', 'Joliet', 'IL',
+    (p_sandbox_id, v_4390, 'pickup', 1, 'Orrin Valley Foods', 'Indianapolis', 'IN', tz_indiana,
+     (v_monday - 4 + time '07:00') at time zone tz_indiana,
+     (v_monday - 4 + time '06:45') at time zone tz_indiana,
+     (v_monday - 4 + time '08:30') at time zone tz_indiana),
+    (p_sandbox_id, v_4390, 'delivery', 2, 'Lakemont Grocery DC', 'Joliet', 'IL', tz,
      (v_monday - 3 + time '13:00') at time zone tz,
      (v_monday - 3 + time '12:40') at time zone tz,
      (v_monday - 3 + time '14:10') at time zone tz);
