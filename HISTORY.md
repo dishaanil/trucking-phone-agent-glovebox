@@ -8,7 +8,7 @@ Project memory for Glovebox across build sessions. Rules for maintaining this fi
 
 *Overwritten each session.*
 
-- **Phase:** Day 3b (stop times and detention) built on `feat/day3-detention`, awaiting commit approval.
+- **Phase:** Day 3b (stop times and detention) committed on `feat/day3-detention` (`d861f5f`), not yet pushed.
 - **Done:** Days 1, 2 and 3a merged (PR #1 to #4). 3b: `POST /stops/:id/times` (spoken or ISO times, timezone-aware, overnight waits, delivery sets status), `GET /stops/:id/detention`, `POST /stops/:id/detention-claims` (draft, late-arrival note, recalculated on time changes); Story A pickup seeded 3.5 hours before now. 215 vitest tests pass; lint and typecheck clean.
 - **Next:** 3c summaries, unpaid loads, mocks and demo endpoints; 3d SSE. Day 5: call screen suggested stop times from seed data.
 - **Not built:** scale ticket discard (not in the SPEC endpoint list); `/api/src/integrations` (3c).
@@ -284,4 +284,4 @@ Project memory for Glovebox across build sessions. Rules for maintaining this fi
 - Tests: `api/test/detention.test.ts` (unit, including the SPEC example and overnight waits across DST), `api/test/stops.test.ts` (Story A end to end, overnight wait, delivery status, claim recalculation, late arrival, access, idempotency), seed checks. Broke departure resolution and the final-delivery check; tests failed each time.
 - Fixed a test race between files (`fileParallelism: false`).
 - Updated SPEC sections 7, 9, 12 and 13.
-- Branch `feat/day3-detention`.
+- Branch `feat/day3-detention`: `d861f5f` (3b work), plus a docs commit updating this file.
