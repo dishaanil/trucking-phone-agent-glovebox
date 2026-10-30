@@ -5,6 +5,7 @@ import type { Pool } from './db.js';
 import { ApiError } from './errors.js';
 import { callerRoutes } from './routes/callers.js';
 import { ledgerRoutes } from './routes/ledger.js';
+import { loadRoutes } from './routes/loads.js';
 import { sandboxRoutes } from './routes/sandboxes.js';
 
 export function buildApp(opts: { pool: Pool; config: Pick<Config, 'SERVICE_TOKEN' | 'LOG_LEVEL'> }): FastifyInstance {
@@ -36,5 +37,6 @@ export function buildApp(opts: { pool: Pool; config: Pick<Config, 'SERVICE_TOKEN
   sandboxRoutes(app, opts.pool);
   callerRoutes(app, opts.pool, opts.config.SERVICE_TOKEN);
   ledgerRoutes(app, opts.pool, opts.config.SERVICE_TOKEN);
+  loadRoutes(app, opts.pool, opts.config.SERVICE_TOKEN);
   return app;
 }

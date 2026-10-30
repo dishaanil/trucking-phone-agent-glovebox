@@ -142,3 +142,68 @@ export const DiscardResponse = z.object({
   message: z.string(),
 });
 export type DiscardResponse = z.infer<typeof DiscardResponse>;
+
+// ---------- Loads ----------
+
+export const LoadStatus = z.enum(['booked', 'in_transit', 'delivered', 'invoiced', 'paid']);
+export const RateType = z.enum(['flat', 'per_ton', 'per_mile']);
+
+export const LoadsQuery = z.object({ number: z.string().trim().regex(/^[A-Za-z0-9-]{1,20}$/) }).strict();
+
+export const StopResponse = z.object({
+  id: z.uuid(),
+  type: z.enum(['pickup', 'delivery']),
+  sequence: z.number().int(),
+  facility_name: z.string(),
+  city: z.string(),
+  state: z.string(),
+  timezone: z.string(),
+  appointment_at: z.iso.datetime().nullable(),
+  arrived_at: z.iso.datetime().nullable(),
+  departed_at: z.iso.datetime().nullable(),
+});
+export type StopResponse = z.infer<typeof StopResponse>;
+
+export const LoadResponse = z.object({
+  id: z.uuid(),
+  load_number: z.string(),
+  status: LoadStatus,
+  commodity: z.string().nullable(),
+  rate_type: RateType,
+  rate_cents: z.number().int(),
+  loaded_miles: z.number().int(),
+  truck_id: z.uuid(),
+  truck_unit: z.string(),
+  driver_id: z.uuid(),
+  driver_name: z.string(),
+  payer_name: z.string(),
+  stops: z.array(StopResponse),
+});
+export type LoadResponse = z.infer<typeof LoadResponse>;
+
+const cents = z.number().int();
+
+export const ProfitabilityResponse = z.object({
+  load_id: z.uuid(),
+  load_number: z.string(),
+  status: LoadStatus,
+  rate_type: RateType,
+  loaded_miles: z.number().int(),
+  revenue_status: z.enum(['final', 'pending_scale_ticket']),
+  /** Base pay plus approved or paid detention; null while a per-ton load has no confirmed ticket. */
+  revenue_cents: cents.nullable(),
+  revenue_display: z.string().nullable(),
+  /** What a pending (unconfirmed) scale ticket would pay, for the dashboard to show as pending. */
+  projected_revenue_cents: cents.nullable(),
+  projected_revenue_display: z.string().nullable(),
+  detention_revenue_cents: cents,
+  /** Reimbursable expenses plus draft or sent detention. */
+  pending_revenue_cents: cents,
+  costs_cents: cents,
+  costs_display: z.string(),
+  net_cents: cents.nullable(),
+  net_display: z.string().nullable(),
+  cost_per_mile_cents: cents.nullable(),
+  summary: z.string(),
+});
+export type ProfitabilityResponse = z.infer<typeof ProfitabilityResponse>;
