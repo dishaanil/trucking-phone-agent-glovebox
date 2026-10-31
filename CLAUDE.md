@@ -115,7 +115,7 @@ All commits, pushes and pull requests must be authored as me. Never as Claude.
 - **Weights are integer pounds.** Tons are derived (2,000 lb per ton) only inside the API.
 - **Nothing is confirmed without a readback.** Expenses and scale tickets are created `pending` and become `confirmed` only after the caller confirms the readback. Any clear affirmative counts ("yes", "yep", "yup", "that's right", "ten-four"), including mid-sentence.
 - **Corrections update, never duplicate.** A correction modifies the existing pending record.
-- **Every write from the agent carries an idempotency key** (`{call_id}:{turn_index}:{tool_call_index}:{tool_name}`), unique per sandbox and stored in `idempotency_keys` in the same transaction as the write.
+- **Every write from the agent carries an idempotency key** (`{call_id}:{tool_call_id}:{tool_name}`, using the LLM's tool-call id or a UUID per tool invocation; HTTP retries reuse it), unique per sandbox and stored in `idempotency_keys` in the same transaction as the write.
 - **Timestamps are `timestamptz`, stored in UTC.** Convert using the person's timezone at the edges.
 - **IDs are UUIDs.** Human-facing identifiers (load "4471", truck "2") are separate fields.
 
@@ -197,8 +197,11 @@ cd api && pnpm test
 # web
 cd web && pnpm dev
 # agent
-cd agent && uv run python main.py dev     # LiveKit dev mode
-cd agent && uv run pytest
+cd agent && uv run --env-file .env python -m glovebox_agent.main dev   # LiveKit dev mode
+cd agent && uv run --env-file .env python -m glovebox_agent.main console   # talk in the terminal
+cd agent && uv run pytest                                  # unit tests (live tests excluded)
+cd agent && uv run --env-file .env pytest -m live          # live: running API + real keys; transcripts in /evals
+cd api && pnpm schemas:export && cd ../agent && sh scripts/generate_models.sh   # after changing API zod schemas
 # db
 psql "$DATABASE_URL" -f db/migrations/001_init.sql
 # evals

@@ -8,9 +8,9 @@ Project memory for Glovebox across build sessions. Rules for maintaining this fi
 
 *Overwritten each session.*
 
-- **Phase:** Day 3d (SSE) committed on `feat/day3-sse` (`2b5d28d`). With it, Day 3 is complete.
-- **Done:** Days 1, 2, 3a, 3b and 3c merged (PR #1 to #6). 3d: migration `004_event_notify.sql`, `api/src/lib/event-hub.ts` (one LISTEN connection, reconnects and catches up), `GET /sandboxes/:id/events` (`Last-Event-ID` replay, 20-second heartbeat, ends cleanly on shutdown). 246 vitest tests pass; lint and typecheck clean.
-- **Next:** Day 4 agent (LiveKit starter, caller resolution, role-filtered tools, system prompt). Day 5: call screen suggested stop times from seed data; Story B script keeps Tommy's fuel and washout under $329.30; the dashboard on another origin needs CORS or a Next.js proxy for the SSE feed.
+- **Phase:** Day 4 (voice agent) committed on `feat/day4-agent` (`1027fb6` API, `c02da30` agent). All live tests pass (both stories with the real LLM, spoken amounts through Deepgram).
+- **Done:** Days 1 to 3 merged (PR #1 to #7). Day 4: `/agent` (LiveKit 1.8.8 worker, tools, prompt, typed client, generated models), API call start/end/timeout (`005_calls.sql`), schema export with drift tests. Agent: 35 unit tests, 2 integration tests against a running API (both stories at the tool level), 3 live tests (stories with the real LLM, spoken amounts through Deepgram) that skip without keys. API: 255 tests.
+- **Next:** Try both stories by voice in the LiveKit Agents Playground (Day 4 "done when"); text-mode live tests already pass. Day 5: web, call screen suggested stop times from seed data; Story B script keeps Tommy's fuel and washout under $329.30; dashboard needs CORS or a Next.js proxy for SSE; phone number and keypad (DTMF) demo codes.
 - **Not built:** scale ticket discard (not in the SPEC endpoint list); mileage and fuel card interfaces (decided 2026-10-30).
 - **Blockers:** none.
 
@@ -213,6 +213,39 @@ Project memory for Glovebox across build sessions. Rules for maintaining this fi
 - **Choice:** Only payments and detention submission get interfaces in `api/src/integrations`. Mileage and fuel card are seed data read directly. SPEC section 6 says so.
 - **Why:** Nothing calls them, so an interface would be dead code. Add one if something other than seed data needs to supply them.
 
+### 2026-10-31: Day 4 agent plan
+- **Choice:** Python agent in `/agent` (LiveKit Agents 1.8.8 and plugins, pinned about two weeks old; httpx; pydantic). Deepgram Nova-3 STT with number formatting and keyterms, Gemini via the Gemini API key (not Vertex), Deepgram TTS in development and Cartesia for recording, LiveKit turn detector. Caller resolution by SIP caller ID, room or participant metadata (`demo_code`, `seed_key`), or a spoken demo code. Tools take human terms (load and truck numbers, stop names, short refs like `E1`/`T1`) and map them to ids. Owner tools are left out for drivers.
+- **Why:** Approved Day 4 plan.
+
+### 2026-10-31: Agent records and readbacks
+- **Choice:** Each tool result's ref is saved to session state before anything is spoken. `log_expense` returns the existing ref when a pending record from this call has the same category and amount. `confirm_records` accepts only refs from this call that are still pending, and, where the speech handle exposes it, only after the readback finished without interruption; otherwise it returns the readback to say again. Tests cover an interrupted readback and a repeated log.
+- **Why:** Prevents duplicates from repeated tool calls and confirmations of records the caller never fully heard.
+
+### 2026-10-31: Agent idempotency key is the LLM tool-call id
+- **Choice:** The key is `{call_id}:{tool_call_id}` using the LLM's tool-call id when LiveKit exposes it, otherwise a UUID per tool invocation. HTTP retries reuse it. Keys stay unique per sandbox in `idempotency_keys`.
+- **Why:** A turn counter is fragile (what counts as a turn, retries across generations); the tool-call id identifies exactly one invocation.
+- **Supersedes:** the `{call_id}:{turn_index}:{tool_call_index}:{tool_name}` format (2026-10-27) in CLAUDE.md and SPEC section 7. The API is unchanged; it accepts any key.
+
+### 2026-10-31: Agent error handling and escalation
+- **Choice:** Only 5xx, timeouts and network errors count toward the two-strikes escalation to `transfer_to_human`. A 4xx returns the API's speakable message and the call continues. Tested with a driver asking two owner-only questions without being transferred.
+- **Why:** A 403 or 400 is a normal answer, not a failure.
+
+### 2026-10-31: Agent voice details
+- **Choice:** At most one filler line per turn. The prompt includes the caller's current local date and time. The greeting says it is an automated assistant. Spoken amounts like "five twelve forty" are tested early against Deepgram's formatting.
+- **Why:** Approved with the Day 4 plan.
+
+### 2026-10-31: Shared types and call events
+- **Choice:** `api/scripts/export-schemas.ts` exports the zod response schemas to JSON Schema; `agent/glovebox_agent/api_models.py` is generated from it with `datamodel-code-generator`. Both generated files are committed, with drift tests on each side. The API records `call.started` when `/callers/resolve` gets a `call_id`, and `call.ended` from `POST /calls/:call_id/end` or after a timeout.
+- **Why:** CLAUDE.md requires generated shared types; the dashboard's live call panel needs call events, and a crashed agent must not leave a call open forever.
+
+### 2026-10-31: Live agent tests
+- **Choice:** Story A and Story B run as text-only scenarios against a real API and the real LLM, on demand (`uv run pytest -m live`). Transcripts are saved under `/evals`. Secrets live in a gitignored `agent/.env`, filled in by Disha.
+- **Why:** These are the eval scenarios CLAUDE.md requires with a prompt change; they cost LLM quota, so they don't run by default.
+
+### 2026-10-31: Gemini API on a billed project
+- **Choice:** Disha moved the Gemini API key to a new Google project with billing enabled. The agent keeps `gemini-3.5-flash` (via the Gemini API key, not Vertex).
+- **Why:** The free tier (20 requests per day per model) couldn't cover live tests and rehearsals; one Story A run uses 10 to 20 requests.
+
 ---
 
 ## Learnings and gotchas
@@ -243,6 +276,14 @@ Project memory for Glovebox across build sessions. Rules for maintaining this fi
 - **2026-10-30:** Fastify's `close()` waits for open requests, and a hijacked SSE response never finishes. `api/src/routes/events.ts` ends every open stream in a `preClose` hook.
 - **2026-10-30:** Known limitation: event ids are a `bigserial`, so two transactions in the same sandbox can commit out of id order. A stream that already sent the higher id would skip the lower one. Rare in a demo (one caller at a time); a fix would be a short re-read window or a per-sandbox sequence.
 - **2026-10-30:** `fetch` plus `ReadableStream` reads SSE in tests; `app.inject` can't, because it waits for the response to end.
+- **2026-10-31:** LiveKit Agents 1.8: `RunContext.function_call.call_id` is the tool-call id (the Google plugin makes one up when Gemini omits it); `RunContext.speech_handle.interrupted`/`done()` tell whether a readback finished; `RunContext.with_filler(...)` plays filler speech after a delay; a tool that returns a bare `Agent` hands off without a reply. `livekit-plugins-turn-detector` is deprecated in favor of `livekit.agents.inference.TurnDetector` (LiveKit Cloud inference with a local fallback); the agent uses the new one.
+- **2026-10-31:** Deepgram Nova-3 takes `keyterm` (not `keywords`); `smart_format` and `numerals` are separate flags.
+- **2026-10-31:** zod 4's JSON Schema adds safe-integer bounds to every int and regex patterns next to `uuid` and `date-time` formats; left in, `datamodel-code-generator` wraps those fields in `RootModel` classes. The export strips them. The generator's ruff formatting follows the nearest `pyproject.toml`, so the drift test generates inside `agent/`.
+- **2026-10-31:** `uv run --env-file .env` loads env files without a dotenv dependency.
+- **2026-10-31:** Gemini API free tier: 20 generate requests per day per model, and `gemini-3.5-flash` counts against the `gemini-3.6-flash` quota. One Story A run uses about 10 to 20 requests, and LiveKit's LLM retries spend more on 429s. There were also intermittent 504 `DEADLINE_EXCEEDED` errors. `gemini-2.5-flash` returns 404 for new keys.
+- **2026-10-31:** Deepgram Nova-3 with `smart_format` and `numerals` turns "five twelve forty" into `5 12 40` and "fifty two eight" into `52 8`, while "five hundred twelve dollars and forty cents" becomes `$512.40` and "seven fifty" becomes `07:50` (`evals/transcripts/20261031T013717Z-stt-amounts.json`). Gemini read `5 12 40` as `512.40` correctly in live runs, and the readback still confirms every amount.
+- **2026-10-31:** First live Story A runs (`evals/transcripts/*story-a.json`, cut short by quota): logging, the same-ref correction, detention and the receipt reminder worked. Two prompt bugs: fuel was logged without `load_number` (it would land on the truck, not load 4471), and the agent asked about the detention claim instead of "Is that right?", so one "yep" both drafted the claim and confirmed. The prompt now requires `load_number` on the road and one question at a time, with "Is that right?" after every readback. Not yet re-run live.
+- **2026-10-31:** Live stories pass on the billed key (`evals/transcripts/20261031T020516Z-story-a.json`, `20261031T020542Z-story-b.json`, about 30 seconds each). The prompt fixes hold: expenses carry their load, one question per reply, the claim is offered only after confirmation. Gemini shortens long API summaries (the unpaid-loads answer dropped payer names and invoice ages but kept the API's amounts and total) instead of saying them word for word.
 
 ---
 
@@ -311,3 +352,11 @@ Project memory for Glovebox across build sessions. Rules for maintaining this fi
 - Tests: `api/test/events.test.ts` (live delivery, sandbox isolation, `Last-Event-ID` replay, heartbeats, rolled-back events never sent, reconnect after the listener is killed, unsubscribe on disconnect, 404/410/400, streams ended on shutdown). Broke the reconnect catch-up and the shutdown hook; tests failed each time.
 - Updated SPEC sections 5 and 7, and `api/.env.example`.
 - Branch `feat/day3-sse`: `2b5d28d` (3d work), plus a docs commit updating this file.
+
+### 2026-10-31: Day 4 voice agent
+- Logged the Day 4 decisions (agent plan, records and readbacks, tool-call-id idempotency superseding the turn-based format, error policy, voice details, shared types and call events, live tests).
+- API: `db/migrations/005_calls.sql`, `api/src/services/calls.ts`, call_id on `/callers/resolve`, `POST /calls/:call_id/end`, timeout sweep in `server.ts`; `api/src/schema-export.ts`, `api/scripts/export-schemas.ts`, `api/schemas/api.schema.json`; tests `api/test/calls.test.ts`, `api/test/schema-export.test.ts`.
+- Agent: `agent/` (pyproject, uv.lock, `.env.example`, README, `glovebox_agent/*`, `scripts/generate_models.sh`, tests). Broke the readback check, the 4xx rule and the generated models; tests failed each time.
+- Updated CLAUDE.md (idempotency key format, agent commands) and SPEC sections 5, 7 and 10.
+- Live runs with Disha's keys: spoken-amounts test passed; Story A ran 2 to 3 turns per attempt before the Gemini free-tier quota ran out. Fixed two prompt bugs the transcripts showed. After billing was enabled on a new project, both live stories passed. Transcripts committed under `evals/transcripts/`.
+- Branch `feat/day4-agent`: `1027fb6` (API call events and schema export), `c02da30` (agent), plus a docs commit updating this file.

@@ -1,0 +1,194 @@
+{
+  "name": "story-a",
+  "sandbox_id": "6c25a9f5-52fe-4ea0-aae6-a218ae5f6522",
+  "turns": [
+    {
+      "speaker": "Mike",
+      "user": "Fueled up at Love's in Joplin, Missouri, 140 gallons, 5 12 40. Paid a lumper 85 bucks cash. And they held me at the shipper, got there at 5:20 PM, didn't leave till 8:35 PM.",
+      "events": [
+        {
+          "type": "function_call",
+          "name": "log_expense",
+          "arguments": {
+            "gallons": "140",
+            "load_number": "4471",
+            "category": "fuel",
+            "amount": "512.40",
+            "state_code": "MO",
+            "vendor": "Love's",
+            "city": "Joplin"
+          }
+        },
+        {
+          "type": "function_call_output",
+          "name": "log_expense",
+          "output": "{'ok': True, 'ref': 'E1', 'status': 'pending', 'readback': \"Fuel, 512 dollars and 40 cents, 140 gallons at Love's in Joplin, Missouri.\", 'needs_confirmation': False}",
+          "is_error": false
+        },
+        {
+          "type": "function_call",
+          "name": "log_expense",
+          "arguments": {
+            "payment_method": "cash",
+            "load_number": "4471",
+            "amount": "85",
+            "category": "lumper"
+          }
+        },
+        {
+          "type": "function_call_output",
+          "name": "log_expense",
+          "output": "{'ok': True, 'ref': 'E2', 'status': 'pending', 'readback': 'Lumper, 85 dollars, paid cash.', 'needs_confirmation': False}",
+          "is_error": false
+        },
+        {
+          "type": "function_call",
+          "name": "log_stop_times",
+          "arguments": {
+            "arrived_at": "5:20 PM",
+            "load_number": "4471",
+            "stop": "pickup",
+            "departed_at": "8:35 PM"
+          }
+        },
+        {
+          "type": "function_call",
+          "name": "check_detention",
+          "arguments": {
+            "load_number": "4471",
+            "stop": "pickup"
+          }
+        },
+        {
+          "type": "function_call_output",
+          "name": "log_stop_times",
+          "output": "{'ok': True, 'readback': 'Harlan Point Cold Storage: arrived 5:20 PM, left 8:35 PM.', 'load_status': 'in_transit', 'load_delivered': False}",
+          "is_error": false
+        },
+        {
+          "type": "function_call_output",
+          "name": "check_detention",
+          "output": "{'ok': True, 'eligible': True, 'late_arrival': False, 'claim_exists': False, 'summary': 'Detention is billable: 1 hour, 50 dollars. Want me to draft the claim?'}",
+          "is_error": false
+        },
+        {
+          "type": "message",
+          "role": "assistant",
+          "text": "Fuel, 512 dollars and 40 cents, 140 gallons at Love's in Joplin, Missouri. Lumper, 85 dollars, paid cash. Harlan Point Cold Storage: arrived 5:20 PM, left 8:35 PM. Is that right?"
+        }
+      ]
+    },
+    {
+      "speaker": "Mike",
+      "user": "Actually the fuel was 5 21 40, not 5 12.",
+      "events": [
+        {
+          "type": "function_call",
+          "name": "correct_expense",
+          "arguments": {
+            "ref": "E1",
+            "amount": "521.40"
+          }
+        },
+        {
+          "type": "function_call_output",
+          "name": "correct_expense",
+          "output": "{'ok': True, 'ref': 'E1', 'status': 'pending', 'readback': \"Fuel, 521 dollars and 40 cents, 140 gallons at Love's in Joplin, Missouri.\", 'needs_confirmation': False}",
+          "is_error": false
+        },
+        {
+          "type": "message",
+          "role": "assistant",
+          "text": "Fuel, 521 dollars and 40 cents, 140 gallons at Love's in Joplin, Missouri. Is that right?"
+        }
+      ]
+    },
+    {
+      "speaker": "Mike",
+      "user": "Yep, that's all right.",
+      "events": [
+        {
+          "type": "function_call",
+          "name": "confirm_records",
+          "arguments": {
+            "refs": [
+              "E1",
+              "E2"
+            ]
+          }
+        },
+        {
+          "type": "function_call_output",
+          "name": "confirm_records",
+          "output": "{'ok': True, 'confirmed': ['E1', 'E2']}",
+          "is_error": false
+        },
+        {
+          "type": "message",
+          "role": "assistant",
+          "text": "Detention is billable: 1 hour, 50 dollars. Want me to draft the claim?"
+        }
+      ]
+    },
+    {
+      "speaker": "Mike",
+      "user": "Is that wait at the shipper billable?",
+      "events": [
+        {
+          "type": "message",
+          "role": "assistant",
+          "text": "Yes, detention is billable: 1 hour, 50 dollars. Want me to draft the claim?"
+        }
+      ]
+    },
+    {
+      "speaker": "Mike",
+      "user": "Yes, go ahead and draft the claim.",
+      "events": [
+        {
+          "type": "function_call",
+          "name": "create_detention_claim",
+          "arguments": {
+            "stop": "pickup",
+            "load_number": "4471"
+          }
+        },
+        {
+          "type": "function_call_output",
+          "name": "create_detention_claim",
+          "output": "{'ok': True, 'status': 'draft', 'readback': 'Drafted a detention claim for load 4471 at Harlan Point Cold Storage: 1 hour, 50 dollars.'}",
+          "is_error": false
+        },
+        {
+          "type": "message",
+          "role": "assistant",
+          "text": "Drafted a detention claim for load 4471 at Harlan Point Cold Storage: 1 hour, 50 dollars. Don't forget to snap a photo of your cash receipt when you're parked. Anything else?"
+        }
+      ]
+    },
+    {
+      "speaker": "Mike",
+      "user": "How am I doing on this load?",
+      "events": [
+        {
+          "type": "function_call",
+          "name": "get_load_profitability",
+          "arguments": {
+            "load_number": "4471"
+          }
+        },
+        {
+          "type": "function_call_output",
+          "name": "get_load_profitability",
+          "output": "{'ok': True, 'summary': 'Load 4471 pays 2,400 dollars, costs so far are 553, so it nets 1,847. Still pending: 85 in reimbursements and 50 in detention.'}",
+          "is_error": false
+        },
+        {
+          "type": "message",
+          "role": "assistant",
+          "text": "Load 4471 pays 2,400 dollars, costs so far are 553, so it nets 1,847. Still pending: 85 in reimbursements and 50 in detention."
+        }
+      ]
+    }
+  ]
+}

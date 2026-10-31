@@ -33,6 +33,7 @@ const RESET_DELETES = [
   'delete from loads where sandbox_id = $1',
   'delete from trucks where sandbox_id = $1',
   'delete from sandbox_phones where sandbox_id = $1',
+  'delete from calls where sandbox_id = $1',
   'delete from people where sandbox_id = $1',
   'delete from payers where sandbox_id = $1',
   'delete from businesses where sandbox_id = $1',

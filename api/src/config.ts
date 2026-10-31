@@ -11,6 +11,8 @@ const ConfigSchema = z.object({
   // The SSE listener needs a direct (non-pooled) connection; LISTEN fails through a transaction pooler.
   DIRECT_DATABASE_URL: z.string().min(1).optional(),
   SSE_HEARTBEAT_MS: z.coerce.number().int().positive().default(20_000),
+  // Calls still open after this long are ended with reason 'timeout'.
+  CALL_TIMEOUT_MINUTES: z.coerce.number().int().positive().default(30),
 });
 
 export type Config = z.infer<typeof ConfigSchema>;
