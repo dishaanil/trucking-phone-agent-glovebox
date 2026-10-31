@@ -8,7 +8,7 @@ Project memory for Glovebox across build sessions. Rules for maintaining this fi
 
 *Overwritten each session.*
 
-- **Phase:** Day 3d (SSE) built on `feat/day3-sse`, awaiting commit approval. With it, Day 3 is complete.
+- **Phase:** Day 3d (SSE) committed on `feat/day3-sse` (`2b5d28d`). With it, Day 3 is complete.
 - **Done:** Days 1, 2, 3a, 3b and 3c merged (PR #1 to #6). 3d: migration `004_event_notify.sql`, `api/src/lib/event-hub.ts` (one LISTEN connection, reconnects and catches up), `GET /sandboxes/:id/events` (`Last-Event-ID` replay, 20-second heartbeat, ends cleanly on shutdown). 246 vitest tests pass; lint and typecheck clean.
 - **Next:** Day 4 agent (LiveKit starter, caller resolution, role-filtered tools, system prompt). Day 5: call screen suggested stop times from seed data; Story B script keeps Tommy's fuel and washout under $329.30; the dashboard on another origin needs CORS or a Next.js proxy for the SSE feed.
 - **Not built:** scale ticket discard (not in the SPEC endpoint list); mileage and fuel card interfaces (decided 2026-10-30).
@@ -310,4 +310,4 @@ Project memory for Glovebox across build sessions. Rules for maintaining this fi
 - Built migration `db/migrations/004_event_notify.sql`, `api/src/lib/event-hub.ts`, `api/src/routes/events.ts`; config `DIRECT_DATABASE_URL` and `SSE_HEARTBEAT_MS`; the test context creates a hub (connects only when a stream opens).
 - Tests: `api/test/events.test.ts` (live delivery, sandbox isolation, `Last-Event-ID` replay, heartbeats, rolled-back events never sent, reconnect after the listener is killed, unsubscribe on disconnect, 404/410/400, streams ended on shutdown). Broke the reconnect catch-up and the shutdown hook; tests failed each time.
 - Updated SPEC sections 5 and 7, and `api/.env.example`.
-- Branch `feat/day3-sse`.
+- Branch `feat/day3-sse`: `2b5d28d` (3d work), plus a docs commit updating this file.
