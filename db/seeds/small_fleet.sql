@@ -3,8 +3,11 @@
 -- Applied with `create or replace` on every db/migrate.sh run; called by the API as
 --   select seed_small_fleet($1)
 -- Dates are relative to `p_now` (default: now) in America/Chicago, so the demo always looks current.
--- Every timestamp falls this week, between Monday 00:00 and now (see seed_this_week), in this order:
---   7708 (Ray), 7710 (Luis), 7705 (Tommy), payments, repair, overhead fuel, 7712 (Tommy, today).
+-- Every timestamp falls this week, between Monday 00:00 and now (see seed_this_week).
+-- Late October is harvest: each truck runs several short grain loads. The week's story:
+--   Truck 1 (Ray) does best; Truck 3 (Luis) is weakest because of a $780 repair; Truck 2 (Tommy)
+--   is slightly negative until his 7712 scale ticket is confirmed, then positive. The business
+--   is clearly profitable. 7705 (delivered), 7706 (invoiced) and 7712 (no ticket) are unpaid.
 
 drop function if exists seed_small_fleet(uuid);
 
@@ -26,6 +29,12 @@ declare
   v_7705 uuid;
   v_7708 uuid;
   v_7710 uuid;
+  v_7701 uuid;
+  v_7702 uuid;
+  v_7703 uuid;
+  v_7704 uuid;
+  v_7706 uuid;
+  v_7707 uuid;
 begin
   insert into businesses (sandbox_id, name, demo_dot, timezone)
   values (p_sandbox_id, 'Cedar Fork Hauling LLC', 'DEMO-0002', tz)
@@ -130,6 +139,120 @@ begin
      seed_this_week(p_now, tz, 0.94, interval '90 minutes'),
      seed_this_week(p_now, tz, 0.97, interval '60 minutes'));
 
+  -- Harvest week: short per-ton grain runs to the Millbrook river terminal, several per truck.
+  -- 7702, Truck 3: corn, per ton, delivered and paid.
+  insert into loads (sandbox_id, business_id, truck_id, driver_id, payer_id, load_number, commodity,
+                     rate_type, rate_cents, loaded_miles, status, invoiced_at, paid_at)
+  values (p_sandbox_id, v_business, v_truck3, v_luis, v_millbrook, '7702', 'corn',
+          'per_ton', 1400, 78, 'paid',
+          seed_this_week(p_now, tz, 0.40, interval '1 day 20 hours'),
+          seed_this_week(p_now, tz, 0.55, interval '1 day 6 hours'))
+  returning id into v_7702;
+  insert into stops (sandbox_id, load_id, type, sequence, facility_name, city, state, timezone, arrived_at, departed_at)
+  values
+    (p_sandbox_id, v_7702, 'pickup', 1, 'Dellacourt Farm', 'Princeton', 'KY', tz,
+     seed_this_week(p_now, tz, 0.06, interval '3 days 1 hour'),
+     seed_this_week(p_now, tz, 0.07, interval '3 days 20 minutes')),
+    (p_sandbox_id, v_7702, 'delivery', 2, 'Millbrook Grain Co. river terminal', 'Paducah', 'KY', tz,
+     seed_this_week(p_now, tz, 0.11, interval '2 days 23 hours'),
+     seed_this_week(p_now, tz, 0.12, interval '2 days 22 hours 20 minutes'));
+  insert into scale_tickets (sandbox_id, load_id, ticket_number, net_weight_lbs, location, status, created_at)
+  values (p_sandbox_id, v_7702, 'MB-20402', 52000, 'Paducah, KY', 'confirmed', seed_this_week(p_now, tz, 0.12, interval '2 days 22 hours 20 minutes'));
+
+  -- 7704, Truck 2: corn, per ton, delivered and paid.
+  insert into loads (sandbox_id, business_id, truck_id, driver_id, payer_id, load_number, commodity,
+                     rate_type, rate_cents, loaded_miles, status, invoiced_at, paid_at)
+  values (p_sandbox_id, v_business, v_truck2, v_tommy, v_millbrook, '7704', 'corn',
+          'per_ton', 1400, 85, 'paid',
+          seed_this_week(p_now, tz, 0.40, interval '1 day 20 hours'),
+          seed_this_week(p_now, tz, 0.55, interval '1 day 6 hours'))
+  returning id into v_7704;
+  insert into stops (sandbox_id, load_id, type, sequence, facility_name, city, state, timezone, arrived_at, departed_at)
+  values
+    (p_sandbox_id, v_7704, 'pickup', 1, 'Sutter Ridge Farm', 'Marion', 'KY', tz,
+     seed_this_week(p_now, tz, 0.12, interval '2 days 20 hours'),
+     seed_this_week(p_now, tz, 0.13, interval '2 days 19 hours 20 minutes')),
+    (p_sandbox_id, v_7704, 'delivery', 2, 'Millbrook Grain Co. river terminal', 'Paducah', 'KY', tz,
+     seed_this_week(p_now, tz, 0.17, interval '2 days 17 hours 40 minutes'),
+     seed_this_week(p_now, tz, 0.18, interval '2 days 17 hours'));
+  insert into scale_tickets (sandbox_id, load_id, ticket_number, net_weight_lbs, location, status, created_at)
+  values (p_sandbox_id, v_7704, 'MB-20409', 51800, 'Paducah, KY', 'confirmed', seed_this_week(p_now, tz, 0.18, interval '2 days 17 hours'));
+
+  -- 7701, Truck 1: corn, per ton, delivered and paid.
+  insert into loads (sandbox_id, business_id, truck_id, driver_id, payer_id, load_number, commodity,
+                     rate_type, rate_cents, loaded_miles, status, invoiced_at, paid_at)
+  values (p_sandbox_id, v_business, v_truck1, v_ray, v_millbrook, '7701', 'corn',
+          'per_ton', 1400, 78, 'paid',
+          seed_this_week(p_now, tz, 0.40, interval '1 day 20 hours'),
+          seed_this_week(p_now, tz, 0.55, interval '1 day 6 hours'))
+  returning id into v_7701;
+  insert into stops (sandbox_id, load_id, type, sequence, facility_name, city, state, timezone, arrived_at, departed_at)
+  values
+    (p_sandbox_id, v_7701, 'pickup', 1, 'Dellacourt Farm', 'Princeton', 'KY', tz,
+     seed_this_week(p_now, tz, 0.15, interval '2 days 17 hours'),
+     seed_this_week(p_now, tz, 0.16, interval '2 days 16 hours 20 minutes')),
+    (p_sandbox_id, v_7701, 'delivery', 2, 'Millbrook Grain Co. river terminal', 'Paducah', 'KY', tz,
+     seed_this_week(p_now, tz, 0.19, interval '2 days 14 hours 40 minutes'),
+     seed_this_week(p_now, tz, 0.20, interval '2 days 14 hours'));
+  insert into scale_tickets (sandbox_id, load_id, ticket_number, net_weight_lbs, location, status, created_at)
+  values (p_sandbox_id, v_7701, 'MB-20411', 52400, 'Paducah, KY', 'confirmed', seed_this_week(p_now, tz, 0.20, interval '2 days 14 hours'));
+
+  -- 7703, Truck 1: soybeans, per ton, delivered and paid.
+  insert into loads (sandbox_id, business_id, truck_id, driver_id, payer_id, load_number, commodity,
+                     rate_type, rate_cents, loaded_miles, status, invoiced_at, paid_at)
+  values (p_sandbox_id, v_business, v_truck1, v_ray, v_millbrook, '7703', 'soybeans',
+          'per_ton', 1500, 92, 'paid',
+          seed_this_week(p_now, tz, 0.52, interval '1 day 12 hours'),
+          seed_this_week(p_now, tz, 0.60, interval '1 day 2 hours'))
+  returning id into v_7703;
+  insert into stops (sandbox_id, load_id, type, sequence, facility_name, city, state, timezone, arrived_at, departed_at)
+  values
+    (p_sandbox_id, v_7703, 'pickup', 1, 'Sutter Ridge Farm', 'Marion', 'KY', tz,
+     seed_this_week(p_now, tz, 0.45, interval '1 day 18 hours'),
+     seed_this_week(p_now, tz, 0.46, interval '1 day 17 hours 20 minutes')),
+    (p_sandbox_id, v_7703, 'delivery', 2, 'Millbrook Grain Co. river terminal', 'Paducah', 'KY', tz,
+     seed_this_week(p_now, tz, 0.49, interval '1 day 15 hours 40 minutes'),
+     seed_this_week(p_now, tz, 0.50, interval '1 day 15 hours'));
+  insert into scale_tickets (sandbox_id, load_id, ticket_number, net_weight_lbs, location, status, created_at)
+  values (p_sandbox_id, v_7703, 'MB-20425', 50800, 'Paducah, KY', 'confirmed', seed_this_week(p_now, tz, 0.50, interval '1 day 15 hours'));
+
+  -- 7706, Truck 3: corn, per ton, delivered and invoiced, unpaid.
+  insert into loads (sandbox_id, business_id, truck_id, driver_id, payer_id, load_number, commodity,
+                     rate_type, rate_cents, loaded_miles, status, invoiced_at)
+  values (p_sandbox_id, v_business, v_truck3, v_luis, v_millbrook, '7706', 'corn',
+          'per_ton', 1400, 78, 'invoiced',
+          seed_this_week(p_now, tz, 0.66, interval '1 day'))
+  returning id into v_7706;
+  insert into stops (sandbox_id, load_id, type, sequence, facility_name, city, state, timezone, arrived_at, departed_at)
+  values
+    (p_sandbox_id, v_7706, 'pickup', 1, 'Dellacourt Farm', 'Princeton', 'KY', tz,
+     seed_this_week(p_now, tz, 0.50, interval '1 day 14 hours'),
+     seed_this_week(p_now, tz, 0.51, interval '1 day 13 hours 20 minutes')),
+    (p_sandbox_id, v_7706, 'delivery', 2, 'Millbrook Grain Co. river terminal', 'Paducah', 'KY', tz,
+     seed_this_week(p_now, tz, 0.54, interval '1 day 11 hours 40 minutes'),
+     seed_this_week(p_now, tz, 0.55, interval '1 day 11 hours'));
+  insert into scale_tickets (sandbox_id, load_id, ticket_number, net_weight_lbs, location, status, created_at)
+  values (p_sandbox_id, v_7706, 'MB-20436', 53600, 'Paducah, KY', 'confirmed', seed_this_week(p_now, tz, 0.55, interval '1 day 11 hours'));
+
+  -- 7707, Truck 1: corn, per ton, delivered and paid.
+  insert into loads (sandbox_id, business_id, truck_id, driver_id, payer_id, load_number, commodity,
+                     rate_type, rate_cents, loaded_miles, status, invoiced_at, paid_at)
+  values (p_sandbox_id, v_business, v_truck1, v_ray, v_millbrook, '7707', 'corn',
+          'per_ton', 1400, 78, 'paid',
+          seed_this_week(p_now, tz, 0.82, interval '12 hours'),
+          seed_this_week(p_now, tz, 0.84, interval '8 hours'))
+  returning id into v_7707;
+  insert into stops (sandbox_id, load_id, type, sequence, facility_name, city, state, timezone, arrived_at, departed_at)
+  values
+    (p_sandbox_id, v_7707, 'pickup', 1, 'Dellacourt Farm', 'Princeton', 'KY', tz,
+     seed_this_week(p_now, tz, 0.74, interval '20 hours'),
+     seed_this_week(p_now, tz, 0.75, interval '19 hours 20 minutes')),
+    (p_sandbox_id, v_7707, 'delivery', 2, 'Millbrook Grain Co. river terminal', 'Paducah', 'KY', tz,
+     seed_this_week(p_now, tz, 0.78, interval '17 hours 40 minutes'),
+     seed_this_week(p_now, tz, 0.79, interval '17 hours'));
+  insert into scale_tickets (sandbox_id, load_id, ticket_number, net_weight_lbs, location, status, created_at)
+  values (p_sandbox_id, v_7707, 'MB-20447', 53200, 'Paducah, KY', 'confirmed', seed_this_week(p_now, tz, 0.79, interval '17 hours'));
+
   -- Existing confirmed expenses: fuel across KY, TN, IL and IN (for the fuel-by-state stretch),
   -- plus one repair on Truck 3.
   insert into expenses (sandbox_id, business_id, truck_id, person_id, load_id, category, amount_cents,
@@ -142,12 +265,14 @@ begin
     (p_sandbox_id, v_business, v_truck2, v_tommy, v_7705, 'fuel', 44840, 'Union City', 'TN', 118,
      'fuel_card', seed_this_week(p_now, tz, 0.26, interval '2 days 4 hours'), 'confirmed', 'attached', 'seed'),
     (p_sandbox_id, v_business, v_truck1, v_ray, null, 'fuel', 37152, 'Evansville', 'IN', 96,
-     'fuel_card', seed_this_week(p_now, tz, 0.70, interval '22 hours'), 'confirmed', 'attached', 'seed');
+     'fuel_card', seed_this_week(p_now, tz, 0.70, interval '22 hours'), 'confirmed', 'attached', 'seed'),
+    (p_sandbox_id, v_business, v_truck2, v_tommy, null, 'fuel', 33880, 'Paducah', 'KY', 88,
+     'fuel_card', seed_this_week(p_now, tz, 0.80, interval '14 hours'), 'confirmed', 'attached', 'seed');
 
   insert into expenses (sandbox_id, business_id, truck_id, person_id, load_id, category, amount_cents,
                         vendor, city, state, payment_method, occurred_at, status, receipt_status, source)
   values
-    (p_sandbox_id, v_business, v_truck3, v_luis, null, 'repair', 61200, 'Benton Truck and Trailer Repair',
+    (p_sandbox_id, v_business, v_truck3, v_luis, null, 'repair', 78000, 'Benton Truck and Trailer Repair',
      'Benton', 'KY', 'card', seed_this_week(p_now, tz, 0.62, interval '1 day 2 hours'),
      'confirmed', 'attached', 'seed');
 end;

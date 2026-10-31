@@ -3,12 +3,19 @@ import { ZodError } from 'zod';
 import type { Config } from './config.js';
 import type { Pool } from './db.js';
 import { ApiError } from './errors.js';
+import { createIntegrations, type Integrations } from './integrations/index.js';
 import { callerRoutes } from './routes/callers.js';
 import { ledgerRoutes } from './routes/ledger.js';
 import { loadRoutes } from './routes/loads.js';
 import { sandboxRoutes } from './routes/sandboxes.js';
+import { summaryRoutes } from './routes/summaries.js';
 
-export function buildApp(opts: { pool: Pool; config: Pick<Config, 'SERVICE_TOKEN' | 'LOG_LEVEL'> }): FastifyInstance {
+export function buildApp(opts: {
+  pool: Pool;
+  config: Pick<Config, 'SERVICE_TOKEN' | 'LOG_LEVEL'>;
+  integrations?: Integrations;
+}): FastifyInstance {
+  const integrations = opts.integrations ?? createIntegrations('mock');
   // Request bodies are never logged: they can carry visitor phone numbers.
   const app = Fastify({
     logger: { level: opts.config.LOG_LEVEL, redact: ['req.headers.authorization'] },
@@ -34,9 +41,10 @@ export function buildApp(opts: { pool: Pool; config: Pick<Config, 'SERVICE_TOKEN
   });
 
   app.get('/health', async () => ({ ok: true }));
-  sandboxRoutes(app, opts.pool);
+  sandboxRoutes(app, opts.pool, integrations);
   callerRoutes(app, opts.pool, opts.config.SERVICE_TOKEN);
   ledgerRoutes(app, opts.pool, opts.config.SERVICE_TOKEN);
   loadRoutes(app, opts.pool, opts.config.SERVICE_TOKEN);
+  summaryRoutes(app, opts.pool, opts.config.SERVICE_TOKEN);
   return app;
 }

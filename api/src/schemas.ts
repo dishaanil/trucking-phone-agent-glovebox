@@ -6,6 +6,8 @@ export const SeedKey = z.string().regex(/^[a-z]+$/, 'seed_key must be lowercase 
 export const DemoCode = z.string().regex(/^\d{4}$/, 'demo_code must be 4 digits');
 
 export const SandboxIdParams = z.object({ id: z.uuid() });
+export const SandboxLoadParams = z.object({ id: z.uuid(), loadId: z.uuid() });
+export const SandboxClaimParams = z.object({ id: z.uuid(), claimId: z.uuid() });
 
 // ---------- Requests ----------
 
@@ -108,3 +110,13 @@ export const ResolveCallerResponse = z.discriminatedUnion('status', [
   z.object({ status: z.literal('not_found') }),
 ]);
 export type ResolveCallerResponse = z.infer<typeof ResolveCallerResponse>;
+
+// Demo controls for the mocked integrations (dashboard buttons).
+export const SimulatePaymentResponse = z.object({
+  load_id: z.uuid(),
+  load_number: z.string(),
+  status: z.literal('paid'),
+  paid_at: z.iso.datetime(),
+});
+
+export const SendClaimResponse = z.object({ id: z.uuid(), load_number: z.string(), status: z.literal('sent') });

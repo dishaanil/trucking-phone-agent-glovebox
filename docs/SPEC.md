@@ -300,16 +300,18 @@ create table events (                          -- audit log + dashboard feed
 
 ## 6. Mocked integrations
 
-Every external system sits behind an interface in `/api/src/integrations` with a `Mock*` implementation. Nothing real is called.
+Nothing real is called. Systems the API acts on sit behind an interface in `/api/src/integrations` with a `Mock*` implementation. Systems that would only supply data are represented by seed rows, with no interface.
 
-| Integration | Real-world source | Mock behavior |
+| Integration | Real-world source | In the demo |
 |---|---|---|
-| Payments | Broker or customer payment | Reads `loads.paid_at` from seed data; dashboard "simulate payment" button sets it |
+| Payments | Broker or customer payment | Interface `PaymentsProvider`, `MockPayments`. Reads `loads.paid_at` from seed data; the dashboard "simulate payment" button sets it |
 | Bank and card feeds | Bank, card networks | Not used in demo; seed includes a few already-confirmed expenses |
-| Fuel card | Fuel card provider | Seed fuel purchases tagged `payment_method = 'fuel_card'` |
-| Mileage | ELD or GPS | `loads.loaded_miles` from seed |
-| Broker detention submission | Email or broker portal | Claim stays `draft`; "send" marks it `sent` and logs an event, nothing leaves the system |
+| Fuel card | Fuel card provider | No interface. Seed fuel purchases tagged `payment_method = 'fuel_card'` |
+| Mileage | ELD or GPS | No interface. `loads.loaded_miles` from seed, read directly |
+| Broker detention submission | Email or broker portal | Interface `DetentionSubmitter`, `MockDetentionSubmitter`. Claim stays `draft`; "send" marks it `sent` and logs an event, nothing leaves the system |
 | SMS receipt request (stretch) | SMS provider | Default: logs an event and shows "receipt requested" on the dashboard. Optional real SMS only to the visitor's own verified sandbox number |
+
+Implementations are selected by the `INTEGRATIONS` setting; only `mock` exists. Mileage and fuel card get interfaces only if something other than seed data needs to supply them.
 
 The interface boundary is also a pitch point: real integrations (for example, an existing ledger's bank feeds) would replace the mocks without touching the agent.
 
@@ -326,6 +328,8 @@ All requests and responses validated with zod. Every request carries a caller co
 | POST | `/sandboxes/:id/reset` | Delete and re-copy this sandbox's seed data |
 | POST | `/callers/resolve` | Agent call start: phone number or demo code to sandbox + person + roles + context |
 | GET | `/sandboxes/:id/events` | SSE stream for the dashboard |
+| POST | `/sandboxes/:id/loads/:loadId/simulate-payment` | Demo control: mock payment received (delivered or invoiced loads only) |
+| POST | `/sandboxes/:id/detention-claims/:claimId/send` | Demo control: mark a draft claim sent; nothing leaves the system |
 
 ### Ledger (driver and owner)
 | Method | Path | Purpose |
@@ -416,7 +420,8 @@ The API takes UUIDs (`load_id`, `truck_id`); the agent maps human load and truck
 - A draft detention claim on the stop is recalculated when its times change; sent or settled claims are left alone.
 - `POST /stops/:id/detention-claims` drafts one claim per stop. A second is 409 `claim_exists` with the existing claim; a stop with nothing billable is 409 `not_billable` with a speakable reason.
 - Confirming a record that is not `pending` is a no-op, not an error.
-- Owner-only endpoints return `403` with a speakable `message` for driver-only callers.
+- Owner-only endpoints return `403` `owner_only` ("That's one for the owner to check.") for driver-only callers.
+- Demo controls are public by sandbox id, like the other sandbox routes. Each checks that the record belongs to the sandbox (404 otherwise) and that the sandbox is live (410 if expired). Event payloads never contain phone numbers; `phone.registered` logs only the last 4 digits.
 
 ## 8. Revenue and profitability
 
@@ -442,7 +447,7 @@ business (range): sum over trucks + business overhead
 ```
 **Ranges:** "this week" is the calendar week from Monday 00:00 to now, in the business's timezone (`businesses.timezone`). "Last 7 days" is supported when the caller says it. A load's revenue counts in the range containing its delivery stop's departure; expenses count by `occurred_at`, including expenses on loads not yet delivered. Spoken summaries mention in-transit loads whose costs are included.
 
-Each response includes a one-sentence `summary` for the agent to speak, e.g. "Truck 2 grossed 1,850 this week, spent 640, so it netted 1,210."
+Each response includes a one-sentence `summary` for the agent to speak, e.g. "Truck 2 grossed 1,850 this week, spent 640, so it netted 1,210." Spoken amounts are whole dollars. Summaries add follow-ups for delivered loads still waiting on a scale ticket and for costs on loads not yet delivered ("That includes 32 on load 4471, still in transit."). Business summaries name the best and worst truck by net when there is more than one truck. Unpaid loads are delivered or invoiced loads with no `paid_at`, oldest delivery first, with days since invoiced; loads waiting on a scale ticket are listed but not totaled.
 
 ## 9. Detention
 
@@ -580,12 +585,14 @@ All names, numbers and amounts below are fictional. Before publishing, run the n
   - Luis Ortega (`luis`), driver, Truck 3, (270) 555-0113
 - **Trucks 1 to 3:** hopper bottom
 - **Payers:** Millbrook Grain Co. (receiver, pays per ton, no detention); Prairie Run Brokerage (broker, flat rate, pays detention)
-- **Loads this week:**
-  - 7712, Truck 2 (Tommy): corn to Millbrook Grain Co. river terminal, per ton $14.00, 85 loaded miles, delivered, **no scale ticket yet** (demo fills it)
-  - 7705, Truck 2: soybeans, per ton, delivered, ticket confirmed, unpaid
+- **Loads this week (harvest):** short per-ton grain runs from Dellacourt Farm and Sutter Ridge Farm to the Millbrook Grain Co. river terminal, each with a confirmed scale ticket, except:
+  - 7712, Truck 2 (Tommy): corn, per ton $14.00, 85 loaded miles, delivered, **no scale ticket yet** (demo fills it)
+  - 7705, Truck 2: soybeans, per ton, delivered, ticket confirmed, unpaid (not invoiced)
+  - 7706, Truck 3: corn, per ton, delivered, invoiced, unpaid
   - 7708, Truck 1 (Ray): fertilizer backhaul, flat $780, Prairie Run Brokerage, delivered, paid
-  - 7710, Truck 3 (Luis): corn, per ton, delivered, paid
-- **Existing confirmed expenses:** a few fuel purchases across Kentucky, Tennessee, Illinois and Indiana (for the fuel by state stretch), one repair on Truck 3
+  - Also paid: 7701, 7703, 7707 (Truck 1), 7704 (Truck 2), 7702, 7710 (Truck 3)
+- **Existing confirmed expenses:** fuel purchases across Kentucky, Tennessee, Illinois and Indiana (for the fuel by state stretch), and a $780 repair on Truck 3
+- **The week's shape (tested):** the business is clearly profitable; Truck 1 does best; Truck 3 is weakest, mainly because of the repair; Truck 2 is slightly negative (about -$40) until Tommy's 7712 ticket is confirmed (+$369.60), then positive. Story B's fuel and washout must total under $329.30 for Truck 2 to stay positive in Ray's call.
 
 Seed templates are deterministic and use relative dates ("today", "this week") computed at copy time, so the demo always looks current. Seed activity for this week falls between Monday 00:00 (business timezone) and now, so weekly summaries are never empty, even early on a Monday. Load 4390 falls in the previous week.
 
