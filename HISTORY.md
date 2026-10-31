@@ -8,7 +8,7 @@ Project memory for Glovebox across build sessions. Rules for maintaining this fi
 
 *Overwritten each session.*
 
-- **Phase:** Day 4 (voice agent) built on `feat/day4-agent`, awaiting commit approval. All live tests pass (both stories with the real LLM, spoken amounts through Deepgram).
+- **Phase:** Day 4 (voice agent) committed on `feat/day4-agent` (`1027fb6` API, `c02da30` agent). All live tests pass (both stories with the real LLM, spoken amounts through Deepgram).
 - **Done:** Days 1 to 3 merged (PR #1 to #7). Day 4: `/agent` (LiveKit 1.8.8 worker, tools, prompt, typed client, generated models), API call start/end/timeout (`005_calls.sql`), schema export with drift tests. Agent: 35 unit tests, 2 integration tests against a running API (both stories at the tool level), 3 live tests (stories with the real LLM, spoken amounts through Deepgram) that skip without keys. API: 255 tests.
 - **Next:** Try both stories by voice in the LiveKit Agents Playground (Day 4 "done when"); text-mode live tests already pass. Day 5: web, call screen suggested stop times from seed data; Story B script keeps Tommy's fuel and washout under $329.30; dashboard needs CORS or a Next.js proxy for SSE; phone number and keypad (DTMF) demo codes.
 - **Not built:** scale ticket discard (not in the SPEC endpoint list); mileage and fuel card interfaces (decided 2026-10-30).
@@ -359,4 +359,4 @@ Project memory for Glovebox across build sessions. Rules for maintaining this fi
 - Agent: `agent/` (pyproject, uv.lock, `.env.example`, README, `glovebox_agent/*`, `scripts/generate_models.sh`, tests). Broke the readback check, the 4xx rule and the generated models; tests failed each time.
 - Updated CLAUDE.md (idempotency key format, agent commands) and SPEC sections 5, 7 and 10.
 - Live runs with Disha's keys: spoken-amounts test passed; Story A ran 2 to 3 turns per attempt before the Gemini free-tier quota ran out. Fixed two prompt bugs the transcripts showed. After billing was enabled on a new project, both live stories passed. Transcripts committed under `evals/transcripts/`.
-- Branch `feat/day4-agent`.
+- Branch `feat/day4-agent`: `1027fb6` (API call events and schema export), `c02da30` (agent), plus a docs commit updating this file.
