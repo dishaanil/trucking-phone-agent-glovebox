@@ -8,7 +8,7 @@ Project memory for Glovebox across build sessions. Rules for maintaining this fi
 
 *Overwritten each session.*
 
-- **Phase:** Day 3c (summaries, unpaid loads, mocks) built on `feat/day3-summaries`, awaiting commit approval.
+- **Phase:** Day 3c (summaries, unpaid loads, mocks) committed on `feat/day3-summaries` (`2d2a393`).
 - **Done:** Days 1, 2, 3a and 3b merged (PR #1 to #5). 3c: `GET /trucks/:id/summary`, `GET /businesses/:id/summary`, `GET /businesses/:id/unpaid-loads` (owner-only, `range=week|last_7_days`); `api/src/integrations` (mock payments and detention submission, `INTEGRATIONS=mock`); demo controls `simulate-payment` and claim `send`; small-fleet seed retuned into a profitable harvest week. 237 vitest tests pass; lint and typecheck clean.
 - **Next:** 3d SSE (`GET /sandboxes/:id/events`). Then Day 4 agent. Day 5: call screen suggested stop times from seed data.
 - **Not built:** scale ticket discard (not in the SPEC endpoint list); mileage and fuel card interfaces (decided 2026-10-30).
@@ -301,4 +301,4 @@ Project memory for Glovebox across build sessions. Rules for maintaining this fi
 - Retuned the small-fleet seed into a profitable harvest week (six new loads, $780 repair, a second Tommy fuel stop) and named repairs in summaries. Updated seed counts in existing tests.
 - Tests: `api/test/summaries.test.ts` (week and last-7-days bounds incl. DST and timezone, truck and business totals, Story B owner answer after the driver's writes, in-transit costs, overhead, unpaid loads, owner-only 403s, mock payment and claim send, no phone numbers in events). Broke the owner check and the delivery-range rule; tests failed each time.
 - Updated SPEC sections 6, 7, 8 and 12, and `api/.env.example`.
-- Branch `feat/day3-summaries`.
+- Branch `feat/day3-summaries`: `2d2a393` (3c work), plus a docs commit updating this file.
