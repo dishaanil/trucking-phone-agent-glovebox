@@ -3,6 +3,7 @@ import { fileURLToPath } from 'node:url';
 import type { FastifyInstance } from 'fastify';
 import { buildApp } from '../src/app.js';
 import { createPool, type Pool } from '../src/db.js';
+import { EventHub } from '../src/lib/event-hub.js';
 import type { SandboxView } from '../src/schemas.js';
 
 try {
@@ -16,14 +17,22 @@ export const SERVICE_TOKEN = 'test-service-token-0123456789';
 export interface TestContext {
   app: FastifyInstance;
   pool: Pool;
+  hub: EventHub;
 }
 
-export function makeContext(): TestContext {
+export function makeContext(opts: { sseHeartbeatMs?: number; hubRetryMs?: number } = {}): TestContext {
   const url = process.env.TEST_DATABASE_URL;
   if (!url) throw new Error('TEST_DATABASE_URL must be set to run tests');
   const pool = createPool(url);
-  const app = buildApp({ pool, config: { SERVICE_TOKEN, LOG_LEVEL: 'silent' } });
-  return { app, pool };
+  // The hub connects only when a stream subscribes.
+  const hub = new EventHub(url, opts.hubRetryMs);
+  const app = buildApp({
+    pool,
+    config: { SERVICE_TOKEN, LOG_LEVEL: 'silent' },
+    eventHub: hub,
+    ...(opts.sseHeartbeatMs ? { sseHeartbeatMs: opts.sseHeartbeatMs } : {}),
+  });
+  return { app, pool, hub };
 }
 
 export async function closeContext(ctx: TestContext): Promise<void> {
