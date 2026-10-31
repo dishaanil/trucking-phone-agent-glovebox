@@ -1,0 +1,105 @@
+{
+  "name": "story-a",
+  "sandbox_id": "bac45070-f657-42ec-9f42-8b7c89c1d7ff",
+  "turns": [
+    {
+      "speaker": "Mike",
+      "user": "Fueled up at Love's in Joplin, Missouri, 140 gallons, 5 12 40. Paid a lumper 85 bucks cash. And they held me at the shipper, got there at 4:50 PM, didn't leave till 8:05 PM.",
+      "events": [
+        {
+          "type": "function_call",
+          "name": "log_expense",
+          "arguments": {
+            "gallons": "140",
+            "state_code": "MO",
+            "amount": "512.40",
+            "category": "fuel",
+            "vendor": "Love's",
+            "city": "Joplin"
+          }
+        },
+        {
+          "type": "function_call_output",
+          "name": "log_expense",
+          "output": "{'ok': True, 'ref': 'E1', 'status': 'pending', 'readback': \"Fuel, 512 dollars and 40 cents, 140 gallons at Love's in Joplin, Missouri.\", 'needs_confirmation': False}",
+          "is_error": false
+        },
+        {
+          "type": "function_call",
+          "name": "log_expense",
+          "arguments": {
+            "payment_method": "cash",
+            "amount": "85",
+            "category": "lumper"
+          }
+        },
+        {
+          "type": "function_call_output",
+          "name": "log_expense",
+          "output": "{'ok': True, 'ref': 'E2', 'status': 'pending', 'readback': 'Lumper, 85 dollars, paid cash.', 'needs_confirmation': False}",
+          "is_error": false
+        },
+        {
+          "type": "function_call",
+          "name": "log_stop_times",
+          "arguments": {
+            "load_number": "4471",
+            "departed_at": "8:05 PM",
+            "stop": "pickup",
+            "arrived_at": "4:50 PM"
+          }
+        },
+        {
+          "type": "function_call_output",
+          "name": "log_stop_times",
+          "output": "{'ok': True, 'readback': 'Harlan Point Cold Storage: arrived 4:50 PM, left 8:05 PM.', 'load_status': 'in_transit', 'load_delivered': False}",
+          "is_error": false
+        },
+        {
+          "type": "function_call",
+          "name": "check_detention",
+          "arguments": {
+            "load_number": "4471",
+            "stop": "pickup"
+          }
+        },
+        {
+          "type": "function_call_output",
+          "name": "check_detention",
+          "output": "{'ok': True, 'eligible': True, 'late_arrival': False, 'claim_exists': False, 'summary': 'Detention is billable: 1 hour, 50 dollars. Want me to draft the claim?'}",
+          "is_error": false
+        },
+        {
+          "type": "message",
+          "role": "assistant",
+          "text": "I recorded Fuel, 512 dollars and 40 cents, 140 gallons at Love's in Joplin, Missouri, and Lumper, 85 dollars, paid cash. For Harlan Point Cold Storage: arrived 4:50 PM, left 8:05 PM \u2014 Detention is billable: 1 hour, 50 dollars. Want me to draft the claim?"
+        }
+      ]
+    },
+    {
+      "speaker": "Mike",
+      "user": "Actually the fuel was 5 21 40, not 5 12.",
+      "events": [
+        {
+          "type": "function_call",
+          "name": "correct_expense",
+          "arguments": {
+            "ref": "E1",
+            "amount": "521.40"
+          }
+        },
+        {
+          "type": "function_call_output",
+          "name": "correct_expense",
+          "output": "{'ok': True, 'ref': 'E1', 'status': 'pending', 'readback': \"Fuel, 521 dollars and 40 cents, 140 gallons at Love's in Joplin, Missouri.\", 'needs_confirmation': False}",
+          "is_error": false
+        },
+        {
+          "type": "message",
+          "role": "assistant",
+          "text": "Got it, updated to Fuel, 521 dollars and 40 cents, 140 gallons at Love's in Joplin, Missouri. Do you want me to draft that 50 dollar detention claim?"
+        }
+      ]
+    }
+  ]
+}

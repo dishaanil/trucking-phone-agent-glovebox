@@ -1,0 +1,186 @@
+{
+  "name": "story-b",
+  "sandbox_id": "74a4276b-163f-43de-8b82-5e37500e1f1c",
+  "turns": [
+    {
+      "speaker": "Tommy",
+      "user": "Scale ticket on 7712 says 52,800 net. Fueled at Paducah, 47 gallons, 180 bucks, and a 45 dollar washout.",
+      "events": [
+        {
+          "type": "function_call",
+          "name": "log_scale_ticket",
+          "arguments": {
+            "load_number": "7712",
+            "net_weight_lbs": "52,800"
+          }
+        },
+        {
+          "type": "function_call_output",
+          "name": "log_scale_ticket",
+          "output": "{'ok': True, 'ref': 'T1', 'status': 'pending', 'readback': 'Scale ticket for load 7712, 52,800 pounds net.', 'needs_confirmation': False}",
+          "is_error": false
+        },
+        {
+          "type": "function_call",
+          "name": "log_expense",
+          "arguments": {
+            "load_number": "7712",
+            "category": "fuel",
+            "gallons": "47",
+            "city": "Paducah",
+            "amount": "180"
+          }
+        },
+        {
+          "type": "function_call_output",
+          "name": "log_expense",
+          "output": "{'ok': True, 'ref': 'E1', 'status': 'pending', 'readback': 'Fuel, 180 dollars, 47 gallons in Paducah.', 'needs_confirmation': False}",
+          "is_error": false
+        },
+        {
+          "type": "function_call",
+          "name": "log_expense",
+          "arguments": {
+            "city": "Paducah",
+            "category": "washout",
+            "amount": "45",
+            "load_number": "7712"
+          }
+        },
+        {
+          "type": "function_call_output",
+          "name": "log_expense",
+          "output": "{'ok': True, 'ref': 'E2', 'status': 'pending', 'readback': 'Washout, 45 dollars in Paducah.', 'needs_confirmation': False}",
+          "is_error": false
+        },
+        {
+          "type": "message",
+          "role": "assistant",
+          "text": "Scale ticket for load 7712, 52,800 pounds net. Fuel, 180 dollars, 47 gallons in Paducah. Washout, 45 dollars in Paducah. Is that right?"
+        }
+      ]
+    },
+    {
+      "speaker": "Tommy",
+      "user": "Wait, the ticket was 52,080, not 52,800.",
+      "events": [
+        {
+          "type": "function_call",
+          "name": "correct_scale_ticket",
+          "arguments": {
+            "ref": "T1",
+            "net_weight_lbs": "52,080"
+          }
+        },
+        {
+          "type": "function_call_output",
+          "name": "correct_scale_ticket",
+          "output": "{'ok': True, 'ref': 'T1', 'status': 'pending', 'readback': 'Scale ticket for load 7712, 52,080 pounds net.', 'needs_confirmation': False}",
+          "is_error": false
+        },
+        {
+          "type": "message",
+          "role": "assistant",
+          "text": "Scale ticket for load 7712, 52,080 pounds net. Is that right?"
+        }
+      ]
+    },
+    {
+      "speaker": "Tommy",
+      "user": "Yeah, that's right.",
+      "events": [
+        {
+          "type": "function_call",
+          "name": "confirm_records",
+          "arguments": {
+            "refs": [
+              "T1",
+              "E1",
+              "E2"
+            ]
+          }
+        },
+        {
+          "type": "function_call_output",
+          "name": "confirm_records",
+          "output": "{'ok': True, 'confirmed': ['E1', 'E2', 'T1']}",
+          "is_error": false
+        },
+        {
+          "type": "message",
+          "role": "assistant",
+          "text": "Got those all confirmed. Anything else?"
+        }
+      ]
+    },
+    {
+      "speaker": "Tommy",
+      "user": "How much did we make this week?",
+      "events": [
+        {
+          "type": "message",
+          "role": "assistant",
+          "text": "That's one for the owner to check. I can give you the breakdown on load 7712 if you'd like."
+        }
+      ]
+    },
+    {
+      "speaker": "Tommy",
+      "user": "What about the whole fleet, how are all the trucks doing?",
+      "events": [
+        {
+          "type": "message",
+          "role": "assistant",
+          "text": "That's one for the owner to check. I can give you the numbers on your load 7712 instead."
+        }
+      ]
+    },
+    {
+      "speaker": "Ray",
+      "user": "How did truck 2 do this week?",
+      "events": [
+        {
+          "type": "function_call",
+          "name": "get_truck_summary",
+          "arguments": {
+            "truck_number": "2",
+            "range": "week"
+          }
+        },
+        {
+          "type": "function_call_output",
+          "name": "get_truck_summary",
+          "output": "{'ok': True, 'summary': 'Truck 2 grossed 1,111 this week, spent 1,012, so it netted 99.'}",
+          "is_error": false
+        },
+        {
+          "type": "message",
+          "role": "assistant",
+          "text": "Truck 2 grossed 1,111 this week, spent 1,012, so it netted 99."
+        }
+      ]
+    },
+    {
+      "speaker": "Ray",
+      "user": "Anything we haven't been paid for?",
+      "events": [
+        {
+          "type": "function_call",
+          "name": "list_unpaid_loads",
+          "arguments": {}
+        },
+        {
+          "type": "function_call_output",
+          "name": "list_unpaid_loads",
+          "output": "{'ok': True, 'summary': \"3 loads haven't been paid: 7705, 384 dollars from Millbrook Grain Co., not invoiced yet; 7706, 375 dollars from Millbrook Grain Co., invoiced 1 day ago; 7712, 365 dollars from Millbrook Grain Co., not invoiced yet. That's 1,124 dollars.\"}",
+          "is_error": false
+        },
+        {
+          "type": "message",
+          "role": "assistant",
+          "text": "3 loads haven't been paid: load 7705 for 384 dollars, load 7706 for 375 dollars, and load 7712 for 365 dollars, totaling 1,124 dollars."
+        }
+      ]
+    }
+  ]
+}

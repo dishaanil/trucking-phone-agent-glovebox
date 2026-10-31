@@ -270,7 +270,7 @@ create table detention_claims (
 -- 002_ledger.sql: single source of idempotency for agent writes
 create table idempotency_keys (
   sandbox_id uuid not null references sandboxes(id) on delete cascade,
-  key text not null,                           -- {call_id}:{turn_index}:{tool_call_index}:{tool_name}
+  key text not null,                           -- {call_id}:{tool_call_id}:{tool_name}
   request_hash text not null,
   status_code int,
   response jsonb,
@@ -327,7 +327,8 @@ All requests and responses validated with zod. Every request carries a caller co
 | POST | `/sandboxes/:id/phones` | Register a visitor phone to a seeded person (phone mode) |
 | POST | `/sandboxes/:id/role` | Switch which seeded person the visitor plays |
 | POST | `/sandboxes/:id/reset` | Delete and re-copy this sandbox's seed data |
-| POST | `/callers/resolve` | Agent call start: phone number or demo code to sandbox + person + roles + context |
+| POST | `/callers/resolve` | Agent call start: phone number or demo code to sandbox + person + roles + context. With `call_id`, records `call.started` |
+| POST | `/calls/:call_id/end` | Agent call end (`reason`); records `call.ended` once. Calls still open after `CALL_TIMEOUT_MINUTES` (30) end with reason `timeout` |
 | GET | `/sandboxes/:id/events` | SSE stream for the dashboard |
 | POST | `/sandboxes/:id/loads/:loadId/simulate-payment` | Demo control: mock payment received (delivered or invoiced loads only) |
 | POST | `/sandboxes/:id/detention-claims/:claimId/send` | Demo control: mark a draft claim sent; nothing leaves the system |
@@ -370,7 +371,7 @@ Request (from agent):
   "load_id": "6f1c...",
   "occurred_at": "2026-10-27T14:05:00-05:00",
   "call_id": "call_abc",
-  "idempotency_key": "call_abc:7:0:log_expense"
+  "idempotency_key": "call_abc:fc_8f2k1:log_expense"
 }
 ```
 
@@ -394,7 +395,7 @@ The API takes UUIDs (`load_id`, `truck_id`); the agent maps human load and truck
 
 ### Caller context and idempotency
 - Agent endpoints require the service token plus `x-sandbox-id` and `x-person-id` headers. Roles are read from the database, never from the request.
-- Every agent write carries `call_id` and an `idempotency_key` of the form `{call_id}:{turn_index}:{tool_call_index}:{tool_name}`, where `tool_call_index` counts tool calls within the turn (so three expenses in one breath get three keys).
+- Every agent write carries `call_id` and an `idempotency_key` of the form `{call_id}:{tool_call_id}:{tool_name}`, where `tool_call_id` is the LLM's id for that tool call (a UUID per invocation if the provider gives none). Three expenses in one breath are three tool calls, so three keys; an HTTP retry resends the same key.
 - Keys are unique per `(sandbox_id, key)` in the `idempotency_keys` table, the single source of idempotency. The key is inserted in the same transaction as the write; if the write fails, neither is kept.
 - A replay with the same request returns the stored response (header `idempotent-replayed: true`). The same key with a different request, route or caller is a 409.
 
@@ -524,8 +525,17 @@ greet by name, state current load
 
 The agent resolves load numbers, truck numbers and stop names to IDs using the context fetched at call start, so the LLM works with human terms, not UUIDs.
 
+### Agent rules (Day 4)
+- The greeting says it is an automated assistant, then states the caller's current load. The prompt includes the caller's local date and time.
+- `log_expense` returns the existing ref when a pending record from this call has the same category and amount, instead of writing again.
+- `confirm_records` takes refs from this call that are still pending, and only after their readback finished without interruption; otherwise it returns the readbacks to say again.
+- A 4xx from the API is spoken and the call continues. Only 5xx, timeouts and network errors count toward the two-strikes transfer.
+- Shared types: the API exports its zod schemas to `api/schemas/api.schema.json` (`pnpm schemas:export`); `agent/glovebox_agent/api_models.py` is generated from it. Drift tests on both sides fail when either is stale.
+
 ### Session state (per call)
-- `call_id`, `turn_index`, `tool_call_index` (per turn, for idempotency keys), `sandbox_id`, `person_id`, roles
+- `call_id`, `sandbox_id`, `person_id`, roles; the LLM's tool-call id is the idempotency key for each write
+- records made during the call, by short ref (`E1`, `T1`), each saved before its readback is spoken, with the speech that carried the readback
+- a turn counter, so the filler line ("One sec.") plays at most once per turn
 - active loads and trucks from caller resolution
 - pending record IDs awaiting confirmation
 - tool error counts, for the two-strikes escalation rule

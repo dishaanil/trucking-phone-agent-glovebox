@@ -1,0 +1,33 @@
+{
+  "name": "stt-amounts",
+  "model": "nova-3",
+  "smart_format": true,
+  "numerals": true,
+  "turns": [
+    {
+      "spoken": "fuel was five twelve forty",
+      "heard": "Fuel was 5 12 40.",
+      "expected": "5\\s?12[.\\s]?40|512\\.?40"
+    },
+    {
+      "spoken": "it came to five hundred twelve dollars and forty cents",
+      "heard": "It came to $512.40.",
+      "expected": "\\$?512(\\.40)?"
+    },
+    {
+      "spoken": "the ticket says fifty two thousand eight hundred net",
+      "heard": "The ticket says 52,800 net.",
+      "expected": "52,?800"
+    },
+    {
+      "spoken": "fifty two eight net",
+      "heard": "52 8 net.",
+      "expected": "52[,\\s]?8(00)?"
+    },
+    {
+      "spoken": "got there at seven fifty, didn't leave till eleven oh five",
+      "heard": "That there at 07:50, didn't leave till 11:05.",
+      "expected": "7:?50.*11:?0?5"
+    }
+  ]
+}
