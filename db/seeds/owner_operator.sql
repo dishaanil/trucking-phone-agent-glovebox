@@ -23,6 +23,8 @@ declare
   v_4471 uuid;
   v_4502 uuid;
   v_4390 uuid;
+  v_pickup_appt timestamptz :=
+    to_timestamp(floor(extract(epoch from p_now - interval '3 hours 30 minutes') / 900) * 900);
 begin
   insert into businesses (sandbox_id, name, demo_dot, timezone)
   values (p_sandbox_id, 'Kestrel Line Freight LLC', 'DEMO-0001', tz)
@@ -43,6 +45,9 @@ begin
   returning id into v_bluegate;
 
   -- Load 4471: in transit, Chicago to Atlanta. Stop times are left empty for the demo to fill.
+  -- The pickup appointment is 3.5 hours ago, rounded down to the quarter hour, so Story A's
+  -- stop times (arrive 10 minutes early, leave 3 hours 5 minutes after the appointment) are
+  -- always in the past. The call screen suggests those times from this seed (Day 5).
   insert into loads (sandbox_id, business_id, truck_id, driver_id, payer_id, load_number, commodity,
                      rate_type, rate_cents, loaded_miles, status)
   values (p_sandbox_id, v_business, v_truck, v_mike, v_bluegate, '4471', 'general freight',
@@ -53,7 +58,7 @@ begin
   insert into stops (sandbox_id, load_id, type, sequence, facility_name, city, state, timezone, appointment_at)
   values
     (p_sandbox_id, v_4471, 'pickup', 1, 'Harlan Point Cold Storage', 'Chicago', 'IL', tz,
-     (v_today + time '08:00') at time zone tz),
+     v_pickup_appt),
     (p_sandbox_id, v_4471, 'delivery', 2, 'Southmere Distribution', 'Atlanta', 'GA', tz_east,
      (v_today + 1 + time '14:00') at time zone tz_east);
 

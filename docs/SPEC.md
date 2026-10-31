@@ -408,6 +408,13 @@ The API takes UUIDs (`load_id`, `truck_id`); the agent maps human load and truck
 - `occurred_at` defaults to now. More than 5 minutes in the future is a 400; more than 30 days ago is flagged.
 - Cash lumper fees are reimbursable by default; the caller can override.
 - `departed_at` must be after `arrived_at`; neither may be in the future.
+
+### Stop times and detention claims
+- `POST /stops/:id/times` takes `arrived_at` and/or `departed_at`, each an ISO timestamp with an offset or a local time as the caller said it (`"7:50"`, `"11:05 PM"`). Local times resolve in the stop's timezone (`stops.timezone`, else `businesses.timezone`): arrival to the occurrence nearest the appointment (or now, with no appointment), departure to the first occurrence after arrival. Either in the future is a 400.
+- Stop times have no pending state. They are written with a readback ("Harlan Point Cold Storage: arrived 7:50 AM, left 11:05 AM."), and a correction overwrites them with an event carrying old and new values.
+- A departure from the final delivery stop sets an in-transit load to `delivered`, with a `load.delivered` event.
+- A draft detention claim on the stop is recalculated when its times change; sent or settled claims are left alone.
+- `POST /stops/:id/detention-claims` drafts one claim per stop. A second is 409 `claim_exists` with the existing claim; a stop with nothing billable is 409 `not_billable` with a speakable reason.
 - Confirming a record that is not `pending` is a no-op, not an error.
 - Owner-only endpoints return `403` with a speakable `message` for driver-only callers.
 
@@ -448,8 +455,11 @@ waited      = departed_at - clock_start
 billable    = max(0, waited - free_minutes)
 billable    = floor(billable / increment) * increment
 amount      = billable / 60 * rate_per_hour
-if requires_on_time and not on_time: eligible = false, note "late arrival, detention may be disputed"
+if requires_on_time and not on_time: still eligible, note "late arrival, detention may be disputed"
+                                      (the agent says the note out loud)
 ```
+
+With no appointment, the clock starts at arrival. Waited time is counted in whole minutes.
 
 Example (owner-operator seed): appointment 8:00, arrived 7:50, departed 11:05, 120 free minutes, $50/hr, 15-minute increments. Clock starts 8:00, waited 185 minutes, billable 65, rounded to 60, amount $50.00.
 
@@ -556,7 +566,7 @@ All names, numbers and amounts below are fictional. Before publishing, run the n
 - **Truck 1:** dry van
 - **Payer:** Bluegate Freight Partners (broker), pays detention: 120 free minutes, $50/hr, 15-minute increments, on time required, 15-minute grace
 - **Load 4471:** Chicago, IL to Atlanta, GA, flat rate $2,400, 715 loaded miles, in transit
-  - Pickup: Harlan Point Cold Storage, Chicago, appointment 8:00 AM today
+  - Pickup: Harlan Point Cold Storage, Chicago, appointment 3.5 hours before the sandbox is created, rounded down to the quarter hour, so Story A's times are always in the past
   - Delivery: Southmere Distribution, Atlanta, appointment tomorrow 2:00 PM
 - **Load 4502:** booked for later this week (tests "which load?")
 - **Load 4390:** delivered last week, invoiced, unpaid
@@ -587,7 +597,7 @@ Each seed template is a Postgres function, `seed_owner_operator(sandbox_id uuid)
 
 ### Story A: owner-operator (one call, about 2 minutes)
 1. Mike calls. Agent: "Hey Mike, you're on load 4471, Chicago to Atlanta. What've you got?"
-2. Mike: fuel at Love's in Joplin, a lumper paid cash, and "they held me at the shipper, got there 7:50, didn't leave till after 11."
+2. Mike: fuel at Love's in Joplin, a lumper paid cash, and "they held me at the shipper, got there 7:50, didn't leave till after 11." (The real times are 10 minutes before and 3 hours 5 minutes after the seeded appointment; the call screen suggests them, Day 5.)
 3. Three pending rows appear; agent reads them back together.
 4. Mike corrects the fuel amount; the same row updates. He confirms; rows turn green.
 5. Agent: detention is billable, 1 hour, 50 dollars, want me to draft the claim? Mike: yes. Claim card appears.

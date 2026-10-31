@@ -72,17 +72,19 @@ describe('POST /sandboxes', () => {
     expect(a.demo_code).not.toBe(b.demo_code);
   });
 
-  it('seeds load 4471 pickup at 8:00 AM today, Chicago time', async () => {
+  it('seeds load 4471 pickup 3.5 hours ago, on a quarter hour', async () => {
+    const before = Date.now();
     const sb = await newSandbox(ctx, 'owner_operator');
     const { rows } = await ctx.pool.query<{ appointment_at: Date }>(
       `select s.appointment_at from stops s join loads l on l.id = s.load_id and l.sandbox_id = s.sandbox_id
         where s.sandbox_id = $1 and l.load_number = '4471' and s.type = 'pickup'`,
       [sb.id],
     );
-    const fmt = (d: Date) =>
-      new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Chicago', dateStyle: 'short', timeStyle: 'short', hourCycle: 'h23' }).format(d);
-    const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Chicago', dateStyle: 'short' }).format(new Date());
-    expect(fmt(first(rows).appointment_at)).toBe(`${today}, 08:00`);
+    const appt = first(rows).appointment_at.getTime();
+    const ago = before - appt;
+    expect(appt % (15 * 60_000)).toBe(0);
+    expect(ago).toBeGreaterThanOrEqual(3.5 * 3_600_000 - 5_000);
+    expect(ago).toBeLessThan(3.75 * 3_600_000 + 5_000);
   });
 
   it('removes expired visitor sandboxes when a new one is created', async () => {

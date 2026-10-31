@@ -171,12 +171,30 @@ describe('both seeds: stops and timezones', () => {
           where s.sandbox_id = $1 and l.load_number in ('4471', '4502') order by l.load_number, s.sequence`,
         [sandboxId],
       );
+      // The 4471 pickup is relative to now: 14:00 minus 3.5 hours, rounded down to 10:30.
       expect(rows.map((r) => [r.facility_name, r.local])).toEqual([
-        ['Harlan Point Cold Storage', '08:00'],
+        ['Harlan Point Cold Storage', '10:30'],
         ['Southmere Distribution', '14:00'],
         ['Corliss Packaging', '09:00'],
         ['Tamsin Foods Warehouse', '07:00'],
       ]);
+    });
+  });
+});
+
+describe('owner-operator seed: Story A pickup', () => {
+  it.each(CASES)('leaves room for the Story A stop times before now ($label)', async ({ now }) => {
+    await withSeed('owner_operator', now, async (client, sandboxId) => {
+      const { rows } = await client.query<{ appointment_at: Date }>(
+        `select s.appointment_at from stops s join loads l on l.id = s.load_id and l.sandbox_id = s.sandbox_id
+          where s.sandbox_id = $1 and l.load_number = '4471' and s.type = 'pickup'`,
+        [sandboxId],
+      );
+      const appt = first(rows).appointment_at.getTime();
+      expect(appt % (15 * 60_000)).toBe(0);
+      // Story A: arrive 10 minutes early, leave 3 hours 5 minutes after the appointment.
+      expect(appt + (3 * 60 + 5) * 60_000).toBeLessThanOrEqual(Date.parse(now));
+      expect(Date.parse(now) - appt).toBeLessThan(3.75 * 3_600_000);
     });
   });
 });

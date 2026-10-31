@@ -8,9 +8,9 @@ Project memory for Glovebox across build sessions. Rules for maintaining this fi
 
 *Overwritten each session.*
 
-- **Phase:** Day 3a (profitability) committed on `feat/day3-profitability` (`5d8de58`), pushed and in review as a PR into `main`.
-- **Done:** Days 1 and 2 merged (PR #1, #2, #3). 3a: `db/migrations/003_timezones.sql` (`businesses.timezone`, `stops.timezone`); seeds set both and compute appointments in facility local time; `GET /loads/:id/profitability` and `GET /loads?number=`. 158 vitest tests pass; lint and typecheck clean.
-- **Next:** 3b stop times, detention and claims (incl. `HH:MM` resolution, overnight wait test, delivery sets status, Story A pickup relative to now); 3c summaries, unpaid loads, mocks and demo endpoints; 3d SSE. Day 5: call screen suggested stop times from seed data.
+- **Phase:** Day 3b (stop times and detention) committed on `feat/day3-detention` (`d861f5f`), not yet pushed.
+- **Done:** Days 1, 2 and 3a merged (PR #1 to #4). 3b: `POST /stops/:id/times` (spoken or ISO times, timezone-aware, overnight waits, delivery sets status), `GET /stops/:id/detention`, `POST /stops/:id/detention-claims` (draft, late-arrival note, recalculated on time changes); Story A pickup seeded 3.5 hours before now. 215 vitest tests pass; lint and typecheck clean.
+- **Next:** 3c summaries, unpaid loads, mocks and demo endpoints; 3d SSE. Day 5: call screen suggested stop times from seed data.
 - **Not built:** scale ticket discard (not in the SPEC endpoint list); `/api/src/integrations` (3c).
 - **Blockers:** none.
 
@@ -229,6 +229,8 @@ Project memory for Glovebox across build sessions. Rules for maintaining this fi
 
 - **2026-10-29 (Day 7 deploy gotcha):** The SSE listener needs a direct, non-pooled Postgres connection; LISTEN does not work through a transaction-mode pooler.
 - **2026-10-29 (Day 7 deploy gotcha):** Cloud Run closes requests at its request timeout (default 5 minutes), which cuts SSE streams. Raise the timeout on deploy; clients reconnect with `Last-Event-ID`.
+- **2026-10-29:** Test files share one database, and creating a sandbox deletes every expired visitor sandbox. A test that expires a sandbox could see it deleted by another file running in parallel (a 404 instead of 410). `api/vitest.config.ts` sets `fileParallelism: false`; the suite still runs in about 3.5 seconds.
+- **2026-10-29:** `Intl.DateTimeFormat` time output can contain a narrow no-break space before AM/PM depending on the ICU version. `spokenTime` replaces it with a plain space so readbacks are stable.
 
 ---
 
@@ -276,3 +278,10 @@ Project memory for Glovebox across build sessions. Rules for maintaining this fi
 - Built migration 003, seed timezones, revenue math (`api/src/lib/revenue.ts`), `api/src/services/loads.ts`, `api/src/routes/loads.ts`, schemas, tests (`api/test/loads.test.ts`, seed checks). Checked two rules (confirmed-only costs, driver access) by breaking them and confirming tests fail.
 - Updated SPEC sections 5, 7, 8 and 13 (Story B step 3 and 4 wording).
 - Branch `feat/day3-profitability`: `5d8de58` (3a work), plus a docs commit updating this file. Pushed with approval; PR into `main`.
+
+### 2026-10-29: Day 3b stop times and detention
+- Built `api/src/lib/times.ts` (spoken time parsing, timezone and DST-aware resolution), `api/src/lib/detention.ts` (SPEC section 9 as a pure function), `api/src/services/stops.ts`, and three routes in `api/src/routes/ledger.ts`. Seeded the 4471 pickup relative to now.
+- Tests: `api/test/detention.test.ts` (unit, including the SPEC example and overnight waits across DST), `api/test/stops.test.ts` (Story A end to end, overnight wait, delivery status, claim recalculation, late arrival, access, idempotency), seed checks. Broke departure resolution and the final-delivery check; tests failed each time.
+- Fixed a test race between files (`fileParallelism: false`).
+- Updated SPEC sections 7, 9, 12 and 13.
+- Branch `feat/day3-detention`: `d861f5f` (3b work), plus a docs commit updating this file.

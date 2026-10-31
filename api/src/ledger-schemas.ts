@@ -207,3 +207,72 @@ export const ProfitabilityResponse = z.object({
   summary: z.string(),
 });
 export type ProfitabilityResponse = z.infer<typeof ProfitabilityResponse>;
+
+// ---------- Stops and detention ----------
+
+/** "07:50", "7:50 PM", or an ISO timestamp with an offset. Local times resolve in the stop's timezone. */
+const StopTime = z.string().trim().min(1).max(40);
+
+export const StopTimesBody = z
+  .object({ arrived_at: StopTime.optional(), departed_at: StopTime.optional(), ...WriteMeta })
+  .strict()
+  .refine((b) => b.arrived_at !== undefined || b.departed_at !== undefined, {
+    message: 'arrived_at or departed_at is required',
+  });
+export type StopTimesBody = z.infer<typeof StopTimesBody>;
+
+export const StopTimesResponse = z.object({
+  stop: StopResponse,
+  load_id: z.uuid(),
+  load_number: z.string(),
+  load_status: LoadStatus,
+  /** This departure from the final delivery stop moved the load from in transit to delivered. */
+  load_delivered: z.boolean(),
+  /** A draft detention claim on this stop was recalculated from the new times. */
+  claim_recalculated: z.boolean(),
+  readback: z.string(),
+});
+export type StopTimesResponse = z.infer<typeof StopTimesResponse>;
+
+export const ClaimStatus = z.enum(['draft', 'sent', 'approved', 'rejected', 'paid']);
+
+export const ClaimResponse = z.object({
+  id: z.uuid(),
+  stop_id: z.uuid(),
+  load_id: z.uuid(),
+  load_number: z.string(),
+  facility_name: z.string(),
+  status: ClaimStatus,
+  billable_minutes: z.number().int(),
+  amount_cents: z.number().int(),
+  amount_display: z.string(),
+  notes: z.string().nullable(),
+  readback: z.string(),
+});
+export type ClaimResponse = z.infer<typeof ClaimResponse>;
+
+export const DetentionResponse = z.object({
+  stop_id: z.uuid(),
+  load_id: z.uuid(),
+  load_number: z.string(),
+  facility_name: z.string(),
+  payer_name: z.string(),
+  eligible: z.boolean(),
+  reason: z.enum(['payer_no_detention', 'missing_times', 'under_free_time']).nullable(),
+  on_time: z.boolean().nullable(),
+  late_arrival: z.boolean(),
+  clock_start: z.iso.datetime().nullable(),
+  waited_minutes: z.number().int(),
+  free_minutes: z.number().int(),
+  billable_minutes: z.number().int(),
+  billable_display: z.string(),
+  amount_cents: z.number().int(),
+  amount_display: z.string(),
+  notes: z.string().nullable(),
+  claim: ClaimResponse.nullable(),
+  summary: z.string(),
+});
+export type DetentionResponse = z.infer<typeof DetentionResponse>;
+
+export const CreateClaimBody = z.object({ notes: text(500).optional(), ...WriteMeta }).strict();
+export type CreateClaimBody = z.infer<typeof CreateClaimBody>;
