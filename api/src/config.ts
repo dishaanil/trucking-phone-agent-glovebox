@@ -8,6 +8,9 @@ const ConfigSchema = z.object({
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).default('info'),
   // Which implementations back the external-system interfaces. Only mocks exist.
   INTEGRATIONS: z.enum(['mock']).default('mock'),
+  // The SSE listener needs a direct (non-pooled) connection; LISTEN fails through a transaction pooler.
+  DIRECT_DATABASE_URL: z.string().min(1).optional(),
+  SSE_HEARTBEAT_MS: z.coerce.number().int().positive().default(20_000),
 });
 
 export type Config = z.infer<typeof ConfigSchema>;

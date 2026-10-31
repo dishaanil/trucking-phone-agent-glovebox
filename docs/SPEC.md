@@ -278,6 +278,7 @@ create table idempotency_keys (
   primary key (sandbox_id, key)
 );
 
+-- 004: an insert trigger sends pg_notify('glovebox_events', {sandbox_id, id}) for the SSE feed.
 create table events (                          -- audit log + dashboard feed
   id bigserial primary key,
   sandbox_id uuid not null references sandboxes(id) on delete cascade,
@@ -412,6 +413,11 @@ The API takes UUIDs (`load_id`, `truck_id`); the agent maps human load and truck
 - `occurred_at` defaults to now. More than 5 minutes in the future is a 400; more than 30 days ago is flagged.
 - Cash lumper fees are reimbursable by default; the caller can override.
 - `departed_at` must be after `arrived_at`; neither may be in the future.
+
+### Live feed (SSE)
+- `GET /sandboxes/:id/events` is a Server-Sent Events stream, public by sandbox id like the other sandbox routes (404 unknown, 410 expired). Each event is `id: <events.id>`, `event: <type>`, `data: {id, type, call_id, actor_person_id, payload, created_at}`.
+- Without `Last-Event-ID` the stream starts after the newest event; with it, everything after that id is replayed first. `retry: 2000` tells browsers to reconnect after 2 seconds, and a `: ping` comment is sent every 20 seconds (`SSE_HEARTBEAT_MS`).
+- A trigger on `events` sends `pg_notify` with the sandbox and event id only (payloads are capped at 8 KB), and only on commit. One API listener connection, on a direct non-pooled URL (`DIRECT_DATABASE_URL`, default `DATABASE_URL`), wakes the streams for that sandbox, which then read new rows from `events`. If the listener drops, it reconnects and every stream catches up.
 
 ### Stop times and detention claims
 - `POST /stops/:id/times` takes `arrived_at` and/or `departed_at`, each an ISO timestamp with an offset or a local time as the caller said it (`"7:50"`, `"11:05 PM"`). Local times resolve in the stop's timezone (`stops.timezone`, else `businesses.timezone`): arrival to the occurrence nearest the appointment (or now, with no appointment), departure to the first occurrence after arrival. Either in the future is a 400.

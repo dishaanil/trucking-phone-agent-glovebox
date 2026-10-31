@@ -8,9 +8,9 @@ Project memory for Glovebox across build sessions. Rules for maintaining this fi
 
 *Overwritten each session.*
 
-- **Phase:** Day 3c (summaries, unpaid loads, mocks) committed on `feat/day3-summaries` (`2d2a393`).
-- **Done:** Days 1, 2, 3a and 3b merged (PR #1 to #5). 3c: `GET /trucks/:id/summary`, `GET /businesses/:id/summary`, `GET /businesses/:id/unpaid-loads` (owner-only, `range=week|last_7_days`); `api/src/integrations` (mock payments and detention submission, `INTEGRATIONS=mock`); demo controls `simulate-payment` and claim `send`; small-fleet seed retuned into a profitable harvest week. 237 vitest tests pass; lint and typecheck clean.
-- **Next:** 3d SSE (`GET /sandboxes/:id/events`). Then Day 4 agent. Day 5: call screen suggested stop times from seed data.
+- **Phase:** Day 3d (SSE) built on `feat/day3-sse`, awaiting commit approval. With it, Day 3 is complete.
+- **Done:** Days 1, 2, 3a, 3b and 3c merged (PR #1 to #6). 3d: migration `004_event_notify.sql`, `api/src/lib/event-hub.ts` (one LISTEN connection, reconnects and catches up), `GET /sandboxes/:id/events` (`Last-Event-ID` replay, 20-second heartbeat, ends cleanly on shutdown). 246 vitest tests pass; lint and typecheck clean.
+- **Next:** Day 4 agent (LiveKit starter, caller resolution, role-filtered tools, system prompt). Day 5: call screen suggested stop times from seed data; Story B script keeps Tommy's fuel and washout under $329.30; the dashboard on another origin needs CORS or a Next.js proxy for the SSE feed.
 - **Not built:** scale ticket discard (not in the SPEC endpoint list); mileage and fuel card interfaces (decided 2026-10-30).
 - **Blockers:** none.
 
@@ -240,6 +240,9 @@ Project memory for Glovebox across build sessions. Rules for maintaining this fi
 - **2026-10-29 (Day 7 deploy gotcha):** Cloud Run closes requests at its request timeout (default 5 minutes), which cuts SSE streams. Raise the timeout on deploy; clients reconnect with `Last-Event-ID`.
 - **2026-10-29:** Test files share one database, and creating a sandbox deletes every expired visitor sandbox. A test that expires a sandbox could see it deleted by another file running in parallel (a 404 instead of 410). `api/vitest.config.ts` sets `fileParallelism: false`; the suite still runs in about 3.5 seconds.
 - **2026-10-29:** `Intl.DateTimeFormat` time output can contain a narrow no-break space before AM/PM depending on the ICU version. `spokenTime` replaces it with a plain space so readbacks are stable.
+- **2026-10-30:** Fastify's `close()` waits for open requests, and a hijacked SSE response never finishes. `api/src/routes/events.ts` ends every open stream in a `preClose` hook.
+- **2026-10-30:** Known limitation: event ids are a `bigserial`, so two transactions in the same sandbox can commit out of id order. A stream that already sent the higher id would skip the lower one. Rare in a demo (one caller at a time); a fix would be a short re-read window or a per-sandbox sequence.
+- **2026-10-30:** `fetch` plus `ReadableStream` reads SSE in tests; `app.inject` can't, because it waits for the response to end.
 
 ---
 
@@ -302,3 +305,9 @@ Project memory for Glovebox across build sessions. Rules for maintaining this fi
 - Tests: `api/test/summaries.test.ts` (week and last-7-days bounds incl. DST and timezone, truck and business totals, Story B owner answer after the driver's writes, in-transit costs, overhead, unpaid loads, owner-only 403s, mock payment and claim send, no phone numbers in events). Broke the owner check and the delivery-range rule; tests failed each time.
 - Updated SPEC sections 6, 7, 8 and 12, and `api/.env.example`.
 - Branch `feat/day3-summaries`: `2d2a393` (3c work), plus a docs commit updating this file.
+
+### 2026-10-30: Day 3d SSE
+- Built migration `db/migrations/004_event_notify.sql`, `api/src/lib/event-hub.ts`, `api/src/routes/events.ts`; config `DIRECT_DATABASE_URL` and `SSE_HEARTBEAT_MS`; the test context creates a hub (connects only when a stream opens).
+- Tests: `api/test/events.test.ts` (live delivery, sandbox isolation, `Last-Event-ID` replay, heartbeats, rolled-back events never sent, reconnect after the listener is killed, unsubscribe on disconnect, 404/410/400, streams ended on shutdown). Broke the reconnect catch-up and the shutdown hook; tests failed each time.
+- Updated SPEC sections 5 and 7, and `api/.env.example`.
+- Branch `feat/day3-sse`.
