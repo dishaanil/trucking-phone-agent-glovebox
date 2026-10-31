@@ -11,7 +11,8 @@
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "test": "vitest run",
-    "db:migrate": "node --env-file-if-exists=.env -e \"require('node:child_process').execFileSync('sh',['../db/migrate.sh'],{stdio:'inherit'})\""
+    "db:migrate": "node --env-file-if-exists=.env -e \"require('node:child_process').execFileSync('sh',['../db/migrate.sh'],{stdio:'inherit'})\"",
+    "schemas:export": "tsx scripts/export-schemas.ts"
   },
   "dependencies": {
     "fastify": "^5.12.7",

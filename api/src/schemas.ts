@@ -23,10 +23,23 @@ export const RegisterPhoneBody = z.object({
 
 export const SetRoleBody = z.object({ seed_key: SeedKey });
 
+// With a call_id, a resolved call is recorded (call.started) for the dashboard.
+const CallId = z.string().regex(/^[A-Za-z0-9_.:-]{1,128}$/);
 export const ResolveCallerBody = z.union([
-  z.object({ phone: z.string().min(1).max(32) }).strict(),
-  z.object({ demo_code: DemoCode, seed_key: SeedKey.optional() }).strict(),
+  z.object({ phone: z.string().min(1).max(32), call_id: CallId.optional() }).strict(),
+  z.object({ demo_code: DemoCode, seed_key: SeedKey.optional(), call_id: CallId.optional() }).strict(),
 ]);
+
+export const CallIdParams = z.object({ call_id: CallId });
+export const EndReason = z.enum(['completed', 'caller_hung_up', 'transferred', 'silence', 'error', 'timeout']);
+export const EndCallBody = z.object({ reason: EndReason.exclude(['timeout']) }).strict();
+export const EndCallResponse = z.object({
+  call_id: z.string(),
+  ended_at: z.iso.datetime(),
+  end_reason: EndReason,
+  duration_seconds: z.number().int(),
+});
+export type EndCallResponse = z.infer<typeof EndCallResponse>;
 
 // ---------- Responses ----------
 
