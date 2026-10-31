@@ -87,8 +87,8 @@ describe('small fleet seed: everything happens this week', () => {
          select 'ticket ' || ticket_number, created_at from scale_tickets where sandbox_id = $1`,
         [sandboxId],
       );
-      // 16 stop times, 2 invoiced, 2 paid, 5 expenses, 2 tickets.
-      expect(rows.length).toBe(27);
+      // 40 stop times, 8 invoiced, 7 paid, 6 expenses, 8 tickets.
+      expect(rows.length).toBe(69);
       for (const { what, t } of rows) {
         expect(t.getTime(), `${what} before week start`).toBeGreaterThanOrEqual(Date.parse(weekStart));
         expect(t.getTime(), `${what} after now`).toBeLessThanOrEqual(Date.parse(now));

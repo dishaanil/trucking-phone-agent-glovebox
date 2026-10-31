@@ -276,3 +276,91 @@ export type DetentionResponse = z.infer<typeof DetentionResponse>;
 
 export const CreateClaimBody = z.object({ notes: text(500).optional(), ...WriteMeta }).strict();
 export type CreateClaimBody = z.infer<typeof CreateClaimBody>;
+
+// ---------- Owner summaries ----------
+
+export const RangeQuery = z.object({ range: z.enum(['week', 'last_7_days']).default('week') }).strict();
+
+const Money = { cents: z.number().int(), display: z.string() };
+
+export const DeliveredLoad = z.object({
+  load_id: z.uuid(),
+  load_number: z.string(),
+  truck_unit: z.string(),
+  revenue_status: z.enum(['final', 'pending_scale_ticket']),
+  revenue_cents: z.number().int().nullable(),
+  projected_revenue_cents: z.number().int().nullable(),
+});
+
+export const OpenLoadCosts = z.object({
+  load_id: z.uuid(),
+  load_number: z.string(),
+  truck_unit: z.string(),
+  status: LoadStatus,
+  costs_cents: z.number().int(),
+});
+
+const Totals = {
+  range: z.enum(['week', 'last_7_days']),
+  start: z.iso.datetime(),
+  end: z.iso.datetime(),
+  revenue_cents: Money.cents,
+  revenue_display: Money.display,
+  costs_cents: Money.cents,
+  costs_display: Money.display,
+  net_cents: Money.cents,
+  net_display: Money.display,
+  /** Reimbursable expenses in range plus draft or sent detention on loads delivered in range. */
+  pending_revenue_cents: Money.cents,
+  delivered_loads: z.array(DeliveredLoad),
+  /** Loads not yet delivered whose costs in range are included. */
+  open_loads_with_costs: z.array(OpenLoadCosts),
+  summary: z.string(),
+};
+
+export const TruckSummaryResponse = z.object({ truck_id: z.uuid(), truck_unit: z.string(), ...Totals });
+export type TruckSummaryResponse = z.infer<typeof TruckSummaryResponse>;
+
+const TruckLine = z.object({
+  truck_id: z.uuid(),
+  truck_unit: z.string(),
+  revenue_cents: z.number().int(),
+  costs_cents: z.number().int(),
+  net_cents: z.number().int(),
+});
+
+export const BusinessSummaryResponse = z.object({
+  business_id: z.uuid(),
+  business_name: z.string(),
+  ...Totals,
+  /** Expenses not tied to a truck. Included in costs_cents. */
+  overhead_costs_cents: z.number().int(),
+  trucks: z.array(TruckLine),
+  best_truck: TruckLine.nullable(),
+  worst_truck: TruckLine.nullable(),
+});
+export type BusinessSummaryResponse = z.infer<typeof BusinessSummaryResponse>;
+
+export const UnpaidLoad = z.object({
+  load_id: z.uuid(),
+  load_number: z.string(),
+  truck_unit: z.string(),
+  payer_name: z.string(),
+  status: LoadStatus,
+  revenue_status: z.enum(['final', 'pending_scale_ticket']),
+  amount_cents: z.number().int().nullable(),
+  amount_display: z.string().nullable(),
+  projected_amount_cents: z.number().int().nullable(),
+  delivered_at: z.iso.datetime().nullable(),
+  invoiced_at: z.iso.datetime().nullable(),
+  days_since_invoiced: z.number().int().nullable(),
+});
+
+export const UnpaidLoadsResponse = z.object({
+  loads: z.array(UnpaidLoad),
+  /** Known amounts only; loads waiting on a scale ticket are listed but not totaled. */
+  total_cents: z.number().int(),
+  total_display: z.string(),
+  summary: z.string(),
+});
+export type UnpaidLoadsResponse = z.infer<typeof UnpaidLoadsResponse>;

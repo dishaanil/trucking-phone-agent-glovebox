@@ -6,6 +6,8 @@ const ConfigSchema = z.object({
   HOST: z.string().default('0.0.0.0'),
   SERVICE_TOKEN: z.string().min(16),
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).default('info'),
+  // Which implementations back the external-system interfaces. Only mocks exist.
+  INTEGRATIONS: z.enum(['mock']).default('mock'),
 });
 
 export type Config = z.infer<typeof ConfigSchema>;

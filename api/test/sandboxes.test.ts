@@ -62,8 +62,8 @@ describe('POST /sandboxes', () => {
       ['tommy', false, '2'],
     ]);
     expect(await count('trucks', sb.id)).toBe(3);
-    expect(await count('loads', sb.id)).toBe(4);
-    expect(await count('scale_tickets', sb.id)).toBe(2);
+    expect(await count('loads', sb.id)).toBe(10);
+    expect(await count('scale_tickets', sb.id)).toBe(8);
   });
 
   it('gives every sandbox its own demo code', async () => {
@@ -255,8 +255,8 @@ describe('POST /sandboxes/:id/reset', () => {
     expect(view.expires_at).toBe(sb.expires_at);
     expect(view.active_person_seed_key).toBe('tommy');
 
-    expect(await count('expenses', sb.id)).toBe(5);
-    expect(await count('expenses', other.id)).toBe(6);
+    expect(await count('expenses', sb.id)).toBe(6);
+    expect(await count('expenses', other.id)).toBe(7);
     expect(await count('events', sb.id)).toBe(1);
 
     // Phone survives and points at the re-seeded Tommy (a new person id).

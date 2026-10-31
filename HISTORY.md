@@ -8,10 +8,10 @@ Project memory for Glovebox across build sessions. Rules for maintaining this fi
 
 *Overwritten each session.*
 
-- **Phase:** Day 3b (stop times and detention) committed on `feat/day3-detention` (`d861f5f`), not yet pushed.
-- **Done:** Days 1, 2 and 3a merged (PR #1 to #4). 3b: `POST /stops/:id/times` (spoken or ISO times, timezone-aware, overnight waits, delivery sets status), `GET /stops/:id/detention`, `POST /stops/:id/detention-claims` (draft, late-arrival note, recalculated on time changes); Story A pickup seeded 3.5 hours before now. 215 vitest tests pass; lint and typecheck clean.
-- **Next:** 3c summaries, unpaid loads, mocks and demo endpoints; 3d SSE. Day 5: call screen suggested stop times from seed data.
-- **Not built:** scale ticket discard (not in the SPEC endpoint list); `/api/src/integrations` (3c).
+- **Phase:** Day 3c (summaries, unpaid loads, mocks) built on `feat/day3-summaries`, awaiting commit approval.
+- **Done:** Days 1, 2, 3a and 3b merged (PR #1 to #5). 3c: `GET /trucks/:id/summary`, `GET /businesses/:id/summary`, `GET /businesses/:id/unpaid-loads` (owner-only, `range=week|last_7_days`); `api/src/integrations` (mock payments and detention submission, `INTEGRATIONS=mock`); demo controls `simulate-payment` and claim `send`; small-fleet seed retuned into a profitable harvest week. 237 vitest tests pass; lint and typecheck clean.
+- **Next:** 3d SSE (`GET /sandboxes/:id/events`). Then Day 4 agent. Day 5: call screen suggested stop times from seed data.
+- **Not built:** scale ticket discard (not in the SPEC endpoint list); mileage and fuel card interfaces (decided 2026-10-30).
 - **Blockers:** none.
 
 ---
@@ -204,6 +204,15 @@ Project memory for Glovebox across build sessions. Rules for maintaining this fi
 - **Why:** Showing some loss is realistic and makes the numbers more believable in the demo.
 - **Alternatives:** retune the fuel amounts so every truck is profitable.
 
+### 2026-10-30: Small-fleet seed is a profitable harvest week
+- **Choice:** Each truck runs several short per-ton grain loads this week (new loads 7701 to 7704, 7706, 7707, reusing existing fictional facilities). The business is clearly profitable (about +$798 before Tommy's ticket, +$1,167 after). Truck 1 does best. Truck 3 is weakest (about -$152) mainly because its repair is now $780, and summaries name the repair. Truck 2 is slightly negative (-$40.30) until the 7712 ticket is confirmed, then positive (+$329.30). Unpaid: 7705, 7706 and 7712. A test checks this shape.
+- **Why:** Late October is harvest; a fleet losing money on every truck made the owner's answer unconvincing. This supersedes "Keep the Truck 2 loss in the small-fleet seed" (2026-10-29) for the fleet as a whole; Truck 2 still shows a loss until the ticket.
+- **Constraint for Day 5:** Story B's fuel and washout must total under $329.30, or Truck 2 goes negative again in Ray's call. The tested example uses $180 fuel and a $45 washout.
+
+### 2026-10-30: No mileage or fuel card interfaces
+- **Choice:** Only payments and detention submission get interfaces in `api/src/integrations`. Mileage and fuel card are seed data read directly. SPEC section 6 says so.
+- **Why:** Nothing calls them, so an interface would be dead code. Add one if something other than seed data needs to supply them.
+
 ---
 
 ## Learnings and gotchas
@@ -285,3 +294,11 @@ Project memory for Glovebox across build sessions. Rules for maintaining this fi
 - Fixed a test race between files (`fileParallelism: false`).
 - Updated SPEC sections 7, 9, 12 and 13.
 - Branch `feat/day3-detention`: `d861f5f` (3b work), plus a docs commit updating this file.
+
+### 2026-10-30: Day 3c summaries, unpaid loads and mocks
+- Built `api/src/lib/ranges.ts`, `api/src/services/summaries.ts`, `api/src/routes/summaries.ts`, `api/src/integrations/` (payments and detention submission interfaces with mocks, selected by `INTEGRATIONS`), and two demo controls in `api/src/routes/sandboxes.ts`.
+- Did not build mileage or fuel card interfaces (approved; logged as a decision). SPEC section 6 updated to match.
+- Retuned the small-fleet seed into a profitable harvest week (six new loads, $780 repair, a second Tommy fuel stop) and named repairs in summaries. Updated seed counts in existing tests.
+- Tests: `api/test/summaries.test.ts` (week and last-7-days bounds incl. DST and timezone, truck and business totals, Story B owner answer after the driver's writes, in-transit costs, overhead, unpaid loads, owner-only 403s, mock payment and claim send, no phone numbers in events). Broke the owner check and the delivery-range rule; tests failed each time.
+- Updated SPEC sections 6, 7, 8 and 12, and `api/.env.example`.
+- Branch `feat/day3-summaries`.

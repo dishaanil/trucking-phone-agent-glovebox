@@ -116,7 +116,7 @@ describe('POST /expenses', () => {
     const res = await logExpense(tommy, { category: 'toll', amount });
     expect(res.statusCode).toBe(400);
     expect(res.json().message).toMatch(/amount/);
-    expect(await countExpenses(sb.id)).toBe(5);
+    expect(await countExpenses(sb.id)).toBe(6);
   });
 
   it('flags but still creates amounts over the ceiling and odd fuel prices', async () => {
